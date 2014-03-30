@@ -9,12 +9,15 @@
 #include <netinet/in.h>
 #include <netdb.h>
 
+void printbufdump(char *buf);
+void readSocket(int sockfd, unsigned char negobuf[], int size);
+
 int main(int argc, char *argv[])
 {
   int sockfd, portno, n;
   struct sockaddr_in serv_addr;
 
-  unsigned char negobuf[8];
+  char negobuf[8];
   char buffer[256];
   char get_buffer[256];
 
@@ -42,29 +45,48 @@ int main(int argc, char *argv[])
     perror("ERROR connecting");
     exit(1);
   }
-  
-  //write(sockfd, negobuf, 8);
-  bzero(negobuf, 8);
-  n = read(sockfd, negobuf, 8);
-  if (n < 0){
-    perror("ERROR reading from socket");
-    exit(1);
-  }
-  
-  int i = 0;
-  for(i = 0; i < 8; i++) {
-    printf("%02x", (unsigned int)(negobuf[i]));
-    if(i%4 == 3) printf("\n"); 
-  }
-  printf("\n");
 
+  /* protocol negotiaton */
+  readSocket(sockfd, negobuf, 8);
+  printbufdump(negobuf);
+
+  negobuf[0] = 0x01;
+  negobuf[1] = 0x01;
+  negobuf[2] = 0x00;
+  negobuf[3] = 0x00;
+
+  printbufdump(negobuf);
+  write(sockfd, negobuf, 8);
+  readSocket(sockfd, negobuf, 8);
+  printbufdump(negobuf);
+  
   /* enter message */
   printf("Please enter ther message: ");
   bzero(buffer, 256);
   fgets(buffer, 255, stdin);
   
-  printf("PRINGING:BUFFER: %s\n", buffer);
-  
+  int i=0;
+  while(i < 256){
+
+    if(buffer[i] == 0x00){
+      if(i != 0)
+	buffer[i-1] = '\\';
+      buffer[i] = '0';
+
+      printf("break:%d\n", i);
+      break;
+    }
+    printf("%c", buffer[i]);
+
+    i++;
+  }
+
+  //  printbufdump(buffer);
+  printf("%s\n", buffer);
+  write(sockfd, buffer, sizeof(buffer));
+  readSocket(sockfd, buffer, sizeof(buffer));
+  printbufdump(buffer);
+
   /* send message to server */
   /*
   bzero(buffer, 256);
@@ -74,6 +96,28 @@ int main(int argc, char *argv[])
     exit(1);
   }
   */
-  printf("%s\n", buffer);
+
   return 0;
+}
+
+
+void printbufdump(unsigned char *buf)
+{
+  printf("%d\n", (int)sizeof(buf));
+  int i = 0;
+  for(i = 0; i < sizeof(buf); i++) {
+    printf("%02x", (unsigned int)(buf[i]));
+    if(i%4 == 3) printf("\n"); 
+  }
+  printf("\n");
+}
+
+void readSocket(int sockfd, unsigned char negobuf[], int size)
+{
+  bzero(negobuf, size);
+  int n = read(sockfd, negobuf, size);
+  if (n < 0){
+    perror("ERROR reading from socket");
+    exit(1);
+  }
 }
