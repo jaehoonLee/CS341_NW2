@@ -11,7 +11,7 @@
 // TODO : fork() for multi process 
 
 #define MEMORYSIZE 4048
-#define BUFSIZE 255
+#define BUFSIZE 256
 #define NEGOSIZE 8
 
 void readSocket(int sockfd, unsigned char buf[], int size);
@@ -19,7 +19,7 @@ void printbufdump(unsigned char *buf);
 int negotiating(int client_sockfd, int transId);
 char removeRedundancy(char memory[]);
 unsigned short checksum(const char *buf, unsigned size);
-
+void printBuf(char buf[]);
 
 int main(int argc, char *argv[])
 {
@@ -85,19 +85,21 @@ int main(int argc, char *argv[])
 		printf("accepted\n");
 
 		int proto = negotiating(client_sockfd, transId);
-		
+	
+		bzero(memory, strlen(memory));
+
 		// 연결 이후 입력 받는 중
 		while(1) {
 
 			printf("message reading\n");
 			
 			char buf[BUFSIZE];
-			memset(buf, '0', BUFSIZE);
 
 			readSocket(client_sockfd, buf, BUFSIZE);
-			printbufdump(buf);
-		
-			strcat(memory, buf);
+			printBuf(buf);
+	
+			strcat(memory, &buf);
+			printBuf(memory);
 
 			if (hasTerminalSignal(buf)) {
 
@@ -105,7 +107,7 @@ int main(int argc, char *argv[])
 
 				write(client_sockfd, result, strlen(result));
 				printf("write\n");
-				printbufdump(result);
+				printBuf(result);
 
 				break;
 			}
@@ -124,6 +126,15 @@ void printbufdump(unsigned char *buf) {
 	for(i = 0; i < sizeof(buf); i++) {
 		printf("%02x", (unsigned int)(buf[i]));
 		if(i%4 == 3) printf("\n");
+	}
+	printf("\n");
+}
+
+void printBuf(char buf[]) {
+	
+	printf("size:%d\n", strlen(buf));
+	for(int i = 0; i < strlen(buf); i++) {
+		printf("%c", buf[i]);	
 	}
 	printf("\n");
 }
@@ -170,7 +181,11 @@ int hasTerminalSignal(char buf[]) {
 
 	for (int i = 0; i < strlen(buf); i++) {
 		if (i!=0) {
-			if (buf[i] == '0' && buf[i-1] == "\\") {
+				printf("%d", i);
+	//		printf("%d)%c,%c ", i, buf[i-1], buf[i]); 
+		//	printf("(%d%d%d)", buf[i-1]=='\\', buf[i]==0, buf[i]=='0');
+			if (buf[i] == '0' && buf[i-1] == '\\') {
+				printf("******");
 				return 1;
 			}
 		}
