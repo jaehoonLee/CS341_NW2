@@ -101,10 +101,11 @@ int main(int argc, char *argv[])
 			strcat(memory, &buf);
 			printBuf(memory);
 
+			printf("1\n");
 			if (hasTerminalSignal(buf)) {
-
-				char *result = removeRedundancy(memory);
-
+				printf("2\n");
+				char result[] = removeRedundancy(memory);
+				printf("3\n");
 				write(client_sockfd, result, strlen(result));
 				printf("write\n");
 				printBuf(result);
@@ -181,9 +182,7 @@ int hasTerminalSignal(char buf[]) {
 
 	for (int i = 0; i < strlen(buf); i++) {
 		if (i!=0) {
-//				printf("%d)%c,%c ", i, buf[i-1], buf[i]); 
-	//			printf("(%d%d%d)", buf[i-1] == '\\', buf[i]==0, buf[i]=='0');
-			if (buf[i] == '0'){ // && buf[i-1] == '\\') {
+			if (strchr(buf, '\0') != NULL) {
 				printf("******");
 				return 1;
 			}
@@ -199,7 +198,7 @@ char removeRedundancy(char memory[]) {
 	char *result;
 
 	for (int i = 0; i < strlen(memory); i++) {
-		
+		printf(" %d%c ", i, memory[i]); 	
 		current = memory[i];
 
 		if (former != current) {
