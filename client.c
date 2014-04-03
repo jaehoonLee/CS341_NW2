@@ -9,7 +9,7 @@
 #include <netinet/in.h>
 #include <netdb.h>
 
-void printbufdump(char *buf);
+void printbufdump(unsigned char *buf);
 void readSocket(int sockfd, unsigned char negobuf[], int size);
 
 int main(int argc, char *argv[])
