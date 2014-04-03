@@ -18,6 +18,7 @@ void readSocket(int sockfd, unsigned char buf[], int size);
 void printbufdump(unsigned char *buf);
 int negotiating(int client_sockfd, int transId);
 char removeRedundancy(char memory[]);
+unsigned short checksum(const char *buf, unsigned size);
 
 
 int main(int argc, char *argv[])
@@ -84,7 +85,6 @@ int main(int argc, char *argv[])
 		printf("accepted\n");
 
 		int proto = negotiating(client_sockfd, transId);
-
 		
 		// 연결 이후 입력 받는 중
 		while(1) {
@@ -109,13 +109,9 @@ int main(int argc, char *argv[])
 
 				break;
 			}
-
 			sleep(1);
-
 		}
-		
 		sleep(1);
-
 	}    
 
 	close(client_sockfd);
@@ -145,22 +141,19 @@ int negotiating(int client_sockfd, int transId) {
 
 	char negobuf[NEGOSIZE];
 
-	// op, proto
 	negobuf[0] = 0x00;
 	negobuf[1] = 0x00;
+	negobuf[2] = 0x00; 
+	negobuf[3] = 0x00;
 
-	// checksum
-	negobuf[2] = 0x11; 
-	negobuf[3] = 0x11;
+	short cs = checksum(negobuf, 8);
+	negobuf[2] = cs & 0xff;
+	negobuf[3] = (cs >> 8) & 0xff;
 	
-	char hex[4];
-	bzero(hex, 4);
-
-	//sprintf(hex, "%x", transId);
-	negobuf[4] = hex[0];
-	negobuf[5] = hex[1];
-	negobuf[6] = hex[2];
-	negobuf[7] = hex[3];
+	negobuf[4] = (transId >> 24) & 0xff;
+	negobuf[5] = (transId >> 16) & 0xff;
+	negobuf[6] = (transId >> 8) & 0xff;
+	negobuf[7] = transId & 0xff;
 
 	write(client_sockfd, negobuf, NEGOSIZE);
 	printf("write\n");
@@ -182,9 +175,7 @@ int hasTerminalSignal(char buf[]) {
 			}
 		}
 	}
-
 	return 0;
-
 }
 
 char removeRedundancy(char memory[]) {
@@ -204,6 +195,32 @@ char removeRedundancy(char memory[]) {
 	}
 
 	return result;
+}
+
+unsigned short checksum(const char *buf, unsigned size)
+{
+  unsigned sum = 0;
+  int i;
+
+  /* Accumulate checksum */
+  for (i = 0; i < size - 1; i += 2)
+    {
+      unsigned short word16 = *(unsigned short *) &buf[i];
+      sum += word16;
+    }
+
+  /* Handle odd-sized case */
+  if (size & 1)
+    {
+      unsigned short word16 = (unsigned char) buf[i];
+      sum += word16;
+    }
+
+  /* Fold to get the ones-complement result */
+  while (sum >> 16) sum = (sum & 0xFFFF)+(sum >> 16);
+
+  /* Invert to get the negative in ones-complement arithmetic */
+  return ~sum;
 }
 
 
