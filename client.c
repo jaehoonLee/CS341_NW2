@@ -11,6 +11,7 @@
 
 void printbufdump(unsigned char *buf);
 void readSocket(int sockfd, unsigned char negobuf[], int size);
+unsigned short checksum(const char *buf, unsigned size);
 
 int main(int argc, char *argv[])
 {
@@ -29,7 +30,6 @@ int main(int argc, char *argv[])
   portno = atoi(argv[4]);
   
   /* create socket */
-
   sockfd = socket(AF_INET, SOCK_STREAM, 0);
   if (sockfd < 0) {
     perror("ERROR opening socket");
@@ -39,7 +39,6 @@ int main(int argc, char *argv[])
   serv_addr.sin_family = AF_INET;
   serv_addr.sin_addr.s_addr = inet_addr(argv[2]);
   serv_addr.sin_port = htons(portno);
-
   
   /* connect */
   if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0){
@@ -49,102 +48,85 @@ int main(int argc, char *argv[])
 
   /* protocol negotiaton */
   readSocket(sockfd, negobuf, 8);
-  printbufdump(negobuf);
 
+  /* checksum calculation */
   negobuf[0] = 0x01;
   negobuf[1] = 0x01;
-  negobuf[2] = 0x0d;
-  negobuf[3] = 0x6c;
+  negobuf[2] = 0x00;
+  negobuf[3] = 0x00;
 
-  printbufdump(negobuf);
+  short cs = checksum(negobuf, 8);
+  negobuf[2] = cs & 0xff;
+  negobuf[3] = (cs >> 8) & 0xff;
 
   /* negotiation protocal write*/
   write(sockfd, negobuf, 8);
-  readSocket(sockfd, negobuf, 8);
-  printbufdump(negobuf);
   
   /* enter message */
-  printf("Please enter ther message: ");
+  printf("Please enter your message: ");
   bzero(buffer, 256);
   fgets(buffer, 255, stdin);
-  
-  /*
-  uint32_t length = 0;
-  int i=0;
-  while(i < 256){
 
-    if(bufin[i] == 0x00){
-      length = i - 1;
-      break;
-    }
-    printf("%c", bufin[i]);
-    length++;
-    i++;
-  }
-
-  printf("num:%d\n", length);
-  length = htonl(length);
-  buffer[0] = (length >> 24) && 0xFF;
-  buffer[1] = (length >> 16) && 0xFF;
-  buffer[2] = (length >> 8) && 0xFF;
-  buffer[3] = length;
-  printf("%02x %02x %02x %02x\n", buffer[0], buffer[1], buffer[2], buffer[3]);
-
-   i=0;
-  while((i + 4) < 256){
-
-    if(bufin[i] == 0x00){
-      if(i != 0)
-	buffer[i-1+4] = '\\';
-      buffer[i+4] = '0';
-
-      printf("break:%d\n", i+4);
-      break;
-    }
-    buffer[i+4]=bufin[i];
-    printf("%c", buffer[i+4]);
-
-    i++;
-  }
-
-  */
-
+  /* encoding protocol 2-1 */
   int i=0;
   while(i < 256){
 
     if(buffer[i] == 0x00){
-      if(i != 0)
-	buffer[i-1] = '\\';
+      buffer[i-1] = '\\';
       buffer[i] = '0';
-
-      printf("break:%d\n", i);
+      //printf("break:%d\n", i);
       break;
     }
-    printf("%c", buffer[i]);
+    //    printf("%c", buffer[i]);
 
     i++;
   }
 
-
-  //  printbufdump(buffer);
-  printbufdump(buffer);
   write(sockfd, buffer, sizeof(buffer));
   readSocket(sockfd, buffer, sizeof(buffer));
-  printbufdump(buffer);
 
-  /* send message to server */
-  /*
-  bzero(buffer, 256);
-  n = read(sockfd, buffer, 255);
-  if (n < 0){
-    perror("ERROR reading from socket");
-    exit(1);
+  /* decoding protocol 2-1 */
+  while(i < 256){
+    
+    if(buffer[i] == '\\'){
+      buffer[i] = 0x00;
+      buffer[i+1] = 0x00;
+      break;
+    }
+    i++;
   }
-  */
+  
+  printbufdump(buffer);
+  printf("%s", buffer);
 
   return 0;
 }
 
+unsigned short checksum(const char *buf, unsigned size)
+{
+  unsigned sum = 0;
+  int i;
+
+  /* Accumulate checksum */
+  for (i = 0; i < size - 1; i += 2)
+    {
+      unsigned short word16 = *(unsigned short *) &buf[i];
+      sum += word16;
+    }
+
+  /* Handle odd-sized case */
+  if (size & 1)
+    {
+      unsigned short word16 = (unsigned char) buf[i];
+      sum += word16;
+    }
+
+  /* Fold to get the ones-complement result */
+  while (sum >> 16) sum = (sum & 0xFFFF)+(sum >> 16);
+
+  /* Invert to get the negative in ones-complement arithmetic */
+  return ~sum;
+}
 
 void printbufdump(unsigned char *buf)
 {

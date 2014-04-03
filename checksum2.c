@@ -31,27 +31,47 @@ unsigned short checksum(unsigned short *buf, int len)
   return (unsigned short)(~sum);
 }
 
+unsigned short checksum1(const char *buf, unsigned size)
+{
+  unsigned sum = 0;
+  int i;
+
+  /* Accumulate checksum */
+  for (i = 0; i < size - 1; i += 2)
+    {
+      unsigned short word16 = *(unsigned short *) &buf[i];
+      sum += word16;
+    }
+
+  /* Handle odd-sized case */
+  if (size & 1)
+    {
+      unsigned short word16 = (unsigned char) buf[i];
+      sum += word16;
+    }
+
+  /* Fold to get the ones-complement result */
+  while (sum >> 16) sum = (sum & 0xFFFF)+(sum >> 16);
+
+  /* Invert to get the negative in ones-complement arithmetic */
+  return ~sum;
+}
+
 int main()
 {
-  char buffer[1024];
-
-  struct tcphdr tcpheader;
-  struct pseudohdr pheader;
-
-  pheader.saddr.s_addr = inet_addr("143.248.48.110");
-  pheader.daddr.s_addr = inet_addr("143.248.229.147");
-  pheader.protocol     = IPPROTO_TCP;
-  pheader.length       = htons(sizeof(struct tcphdr)+8);
   
-  tcpheader.source = htons(23000);
-  tcpheader.dest = htons(80);
-  
+  char negobuf[8];
 
-  //  memcpy(&pheader.tcpheader, tcpheader, sizeof(struct tcphdr));
-  
-  short a = checksum((unsigned short *)&pheader, sizeof(struct pseudohdr) / sizeof(unsigned short));
+  bzero(negobuf, 8);
+  negobuf[4] = 0x5a;
+  negobuf[5] = 0x8f;
+  negobuf[6] = 0x98;
+  negobuf[7] = 0x04;
 
-  printf("%02x\n", a);
-  printf("%02x", htons(a));
+  short a = checksum1(negobuf, 8);
+  short b = htons(a);
+  printf("%04x", a);
+  printf("%04x", htons(a));
+  
   return;
 }
