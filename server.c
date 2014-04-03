@@ -8,6 +8,13 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 
+
+// TODO : protocol 
+// TODO : fork() for multi process 
+// TODO : redundancy 
+
+
+
 int main(int argc, char *argv[])
 {
   int server_sockfd, client_sockfd;
@@ -62,7 +69,14 @@ int main(int argc, char *argv[])
       perror("Accept error : ");
       exit(0);      
     }
-    
+
+    printf("accepted");
+    strcpy(buf, "Message1");
+    write(client_sockfd, buf, strlen(buf));
+    close(client_sockfd);
+    sleep(1);
+
+    /*    
     bzero(&buf, sizeof(buf));
     buf[0] = 0x01;
     write(client_sockfd, buf, strlen(buf));
@@ -70,7 +84,7 @@ int main(int argc, char *argv[])
     close(client_sockfd);
     sleep(1);
     
-    /*
+
     while(1){      
       memset(buf, '0', 255);
       if(read(client_sockfd, buf, 255) <= 0){
