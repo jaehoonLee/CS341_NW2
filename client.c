@@ -26,9 +26,7 @@ int main(int argc, char *argv[])
     exit(0);
   }
 
-
   portno = atoi(argv[4]);
-  printf("2:%d", portno);
   
   /* create socket */
 
@@ -55,8 +53,8 @@ int main(int argc, char *argv[])
 
   negobuf[0] = 0x01;
   negobuf[1] = 0x01;
-  negobuf[2] = 0xbb;
-  negobuf[3] = 0x5a;
+  negobuf[2] = 0x0d;
+  negobuf[3] = 0x6c;
 
   printbufdump(negobuf);
 
