@@ -28,7 +28,7 @@ int main(int argc, char *argv[])
 
 
   portno = atoi(argv[4]);
-  printf("2:%d", portno);
+  printf("2:%d\n\n", portno);
   
   /* create socket */
 
@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
   serv_addr.sin_addr.s_addr = inet_addr(argv[2]);
   serv_addr.sin_port = htons(portno);
 
-  
+ 	printf("connect!\n"); 
   /* connect */
   if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0){
     perror("ERROR connecting");
@@ -51,72 +51,34 @@ int main(int argc, char *argv[])
 
   /* protocol negotiaton */
   readSocket(sockfd, negobuf, 8);
-  printbufdump(negobuf);
+  printf("read\n");
+	printbufdump(negobuf);
 
   negobuf[0] = 0x01;
   negobuf[1] = 0x01;
   negobuf[2] = 0xbb;
   negobuf[3] = 0x5a;
 
-  printbufdump(negobuf);
-
   /* negotiation protocal write*/
   write(sockfd, negobuf, 8);
+	printf("write\n");
+	printbufdump(negobuf);
+/*
   readSocket(sockfd, negobuf, 8);
-  printbufdump(negobuf);
-  
+  printf("read\n");
+	printbufdump(negobuf);
+  */
   /* enter message */
   printf("Please enter ther message: ");
   bzero(buffer, 256);
   fgets(buffer, 255, stdin);
   
-  /*
-  uint32_t length = 0;
-  int i=0;
-  while(i < 256){
-
-    if(bufin[i] == 0x00){
-      length = i - 1;
-      break;
-    }
-    printf("%c", bufin[i]);
-    length++;
-    i++;
-  }
-
-  printf("num:%d\n", length);
-  length = htonl(length);
-  buffer[0] = (length >> 24) && 0xFF;
-  buffer[1] = (length >> 16) && 0xFF;
-  buffer[2] = (length >> 8) && 0xFF;
-  buffer[3] = length;
-  printf("%02x %02x %02x %02x\n", buffer[0], buffer[1], buffer[2], buffer[3]);
-
-   i=0;
-  while((i + 4) < 256){
-
-    if(bufin[i] == 0x00){
-      if(i != 0)
-	buffer[i-1+4] = '\\';
-      buffer[i+4] = '0';
-
-      printf("break:%d\n", i+4);
-      break;
-    }
-    buffer[i+4]=bufin[i];
-    printf("%c", buffer[i+4]);
-
-    i++;
-  }
-
-  */
-
   int i=0;
   while(i < 256){
 
     if(buffer[i] == 0x00){
       if(i != 0)
-	buffer[i-1] = '\\';
+				buffer[i-1] = '\\';
       buffer[i] = '0';
 
       printf("break:%d\n", i);
@@ -127,22 +89,13 @@ int main(int argc, char *argv[])
     i++;
   }
 
-
-  //  printbufdump(buffer);
+	printf("send\n");
   printbufdump(buffer);
   write(sockfd, buffer, sizeof(buffer));
-  readSocket(sockfd, buffer, sizeof(buffer));
-  printbufdump(buffer);
-
-  /* send message to server */
-  /*
-  bzero(buffer, 256);
-  n = read(sockfd, buffer, 255);
-  if (n < 0){
-    perror("ERROR reading from socket");
-    exit(1);
-  }
-  */
+  
+	readSocket(sockfd, buffer, sizeof(buffer));
+ 	printf("read\n"); 
+	printbufdump(buffer);
 
   return 0;
 }
