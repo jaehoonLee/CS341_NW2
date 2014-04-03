@@ -17,7 +17,7 @@
 void readSocket(int sockfd, unsigned char buf[], int size);
 void printbufdump(unsigned char *buf);
 int negotiating(int client_sockfd, int transId);
-char removeRedundancy(char memory[]);
+char* removeRedundancy(char memory[]);
 unsigned short checksum(const char *buf, unsigned size);
 void printBuf(char buf[]);
 
@@ -31,6 +31,15 @@ int main(int argc, char *argv[])
 	char memory[MEMORYSIZE];
   
 	struct sockaddr_in clientaddr, serveraddr;
+
+	
+	char test[4];
+	test[0] = 'a';
+	test[1] = 'a';
+	test[2] = 'b';
+	test[3] = 'c';
+	
+	removeRedundancy(test);
  
 	if (argc != 2) {
     	printf("Usage : ./server [port]\n"); 
@@ -84,6 +93,7 @@ int main(int argc, char *argv[])
 		transId = transId + 1;
 		printf("accepted\n");
 
+		// protocol negotiation
 		int proto = negotiating(client_sockfd, transId);
 	
 		bzero(memory, strlen(memory));
@@ -95,7 +105,7 @@ int main(int argc, char *argv[])
 			
 			char buf[BUFSIZE];
 
-			readSocket(client_sockfd, buf, BUFSIZE);
+			readSocket(client_sockfd, buf, BUFSIZE);			
 			printBuf(buf);
 	
 			strcat(memory, &buf);
@@ -111,9 +121,9 @@ int main(int argc, char *argv[])
 
 				break;
 			}
-			sleep(1);
+			//sleep(1);
 		}
-		sleep(1);
+		//	sleep(1);
 	}    
 
 	close(client_sockfd);
@@ -132,11 +142,12 @@ void printbufdump(unsigned char *buf) {
 
 void printBuf(char buf[]) {
 	
-	printf("size:%d\n", strlen(buf));
-	for(int i = 0; i < strlen(buf); i++) {
-		printf("%c", buf[i]);	
-	}
-	printf("\n");
+  printf("size:%d\n", (int)strlen(buf));
+  int i = 0;
+  for(i = 0; i < strlen(buf); i++) {
+    printf("%c", buf[i]);	
+  }
+  printf("\n");
 }
 
 void readSocket(int sockfd, unsigned char buf[], int size) {
@@ -156,16 +167,16 @@ int negotiating(int client_sockfd, int transId) {
 	negobuf[1] = 0x00;
 	negobuf[2] = 0x00; 
 	negobuf[3] = 0x00;
-
-	short cs = checksum(negobuf, 8);
-	negobuf[2] = cs & 0xff;
-	negobuf[3] = (cs >> 8) & 0xff;
 	
 	negobuf[4] = (transId >> 24) & 0xff;
 	negobuf[5] = (transId >> 16) & 0xff;
 	negobuf[6] = (transId >> 8) & 0xff;
 	negobuf[7] = transId & 0xff;
-
+	
+	short cs = checksum(negobuf, 8);
+	negobuf[2] = cs & 0xff;
+	negobuf[3] = (cs >> 8) & 0xff;
+	
 	write(client_sockfd, negobuf, NEGOSIZE);
 	printf("write\n");
 	printbufdump(negobuf);
@@ -173,40 +184,51 @@ int negotiating(int client_sockfd, int transId) {
 	readSocket(client_sockfd, negobuf, NEGOSIZE);
 	printf("read\n");
 	printbufdump(negobuf);
+	
+	//TODO: checksum check
 
 	return negobuf[1];
 }
 
 int hasTerminalSignal(char buf[]) {
-
-	for (int i = 0; i < strlen(buf); i++) {
-		if (i!=0) {
-//				printf("%d)%c,%c ", i, buf[i-1], buf[i]); 
-	//			printf("(%d%d%d)", buf[i-1] == '\\', buf[i]==0, buf[i]=='0');
-			if (buf[i] == '0'){ // && buf[i-1] == '\\') {
-				printf("******");
-				return 1;
-			}
-		}
-	}
-	return 0;
+  int i = 0;
+  for (i = 0; i < strlen(buf); i++) {
+    if (i!=0) {
+      //				printf("%d)%c,%c ", i, buf[i-1], buf[i]); 
+      //			printf("(%d%d%d)", buf[i-1] == '\\', buf[i]==0, buf[i]=='0');
+      if (buf[i] == '0'){ // && buf[i-1] == '\\') {
+	printf("******");
+	return 1;
+      }
+    }
+  }
+  return 0;
 }
 
-char removeRedundancy(char memory[]) {
-
+char* removeRedundancy(char memory[]) {
+  
 	char former;
 	char current;
 	char *result;
+	int i = 0;
 
-	for (int i = 0; i < strlen(memory); i++) {
+	printBuf(memory);
+	for (i = 0; i < sizeof(memory) / sizeof(char); i++) {
+	  current = memory[i];
 		
-		current = memory[i];
-
-		if (former != current) {
-			strcat(result, current);
-			former = current;
-		}
+	  
+	  if (former != current) {
+	    if(result == NULL){
+	      result = &current;
+	    }else{		    
+	      *result = strcat(*result, current);
+	    }
+	    former = current;
+	  }
+	  
 	}
+
+	printBuf(result);
 
 	return result;
 }
