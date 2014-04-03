@@ -38,12 +38,14 @@ uint16_t tcp_checksum(const void *buff, size_t len, in_addr_t src_addr, in_addr_
   sum += htons(IPPROTO_TCP);
   sum += htons(length);
 
+	printf("%d", sum);
+
   // Add the carries                                              
   while (sum >> 16)
     sum = (sum & 0xFFFF) + (sum >> 16);
 
   // Return the one's complement of sum                           
-  return ( (uint16_t)(~sum)  );
+  return ( (uint16_t)(~sum) );
 }
 
 int main()
@@ -59,11 +61,10 @@ int main()
     printf("%02x ", (unsigned char)negobuf[i]);
   printf("\n");
   
-  in_addr_t dest_addr  = inet_addr("143.248.229.147");
+  in_addr_t dest_addr  = inet_addr("143.248.229.32");
   in_addr_t srd_addr = inet_addr("143.248.48.110"); 
 
   uint16_t val = tcp_checksum(negobuf, sizeof(negobuf), srd_addr, dest_addr);
-
 
   printf("hello:%04x\n", val);
   printf("hello:%04x\n", htonl(val));

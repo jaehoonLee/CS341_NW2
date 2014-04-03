@@ -39,7 +39,12 @@ int main(int argc, char *argv[])
   serv_addr.sin_family = AF_INET;
   serv_addr.sin_addr.s_addr = inet_addr(argv[2]);
   serv_addr.sin_port = htons(portno);
+<<<<<<< HEAD
+  
+=======
 
+ 	printf("connect!\n"); 
+>>>>>>> ae4dbf51846b5ca4912ddda37489a59611feb00f
   /* connect */
   if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0){
     perror("ERROR connecting");
@@ -48,7 +53,11 @@ int main(int argc, char *argv[])
 
   /* protocol negotiaton */
   readSocket(sockfd, negobuf, 8);
-
+<<<<<<< HEAD
+=======
+  printf("read\n");
+	printbufdump(negobuf);
+>>>>>>> ae4dbf51846b5ca4912ddda37489a59611feb00f
 
   /* checksum calculation */
   negobuf[0] = 0x01;
@@ -56,6 +65,7 @@ int main(int argc, char *argv[])
   negobuf[2] = 0x00;
   negobuf[3] = 0x00;
 
+<<<<<<< HEAD
   short cs = checksum(negobuf, 8);
   negobuf[2] = cs & 0xff;
   negobuf[3] = (cs >> 8) & 0xff;
@@ -63,17 +73,37 @@ int main(int argc, char *argv[])
   /* negotiation protocal write*/
   write(sockfd, negobuf, 8);
   
+=======
+  /* negotiation protocal write*/
+  write(sockfd, negobuf, 8);
+	printf("write\n");
+	printbufdump(negobuf);
+/*
+  readSocket(sockfd, negobuf, 8);
+  printf("read\n");
+	printbufdump(negobuf);
+  */
+>>>>>>> ae4dbf51846b5ca4912ddda37489a59611feb00f
   /* enter message */
   printf("Please enter your message: ");
   bzero(buffer, 256);
   fgets(buffer, 255, stdin);
+<<<<<<< HEAD
 
   /* encoding protocol 2-1 */
+=======
+  
+>>>>>>> ae4dbf51846b5ca4912ddda37489a59611feb00f
   int i=0;
   while(i < 256){
 
     if(buffer[i] == 0x00){
+<<<<<<< HEAD
       buffer[i-1] = '\\';
+=======
+      if(i != 0)
+				buffer[i-1] = '\\';
+>>>>>>> ae4dbf51846b5ca4912ddda37489a59611feb00f
       buffer[i] = '0';
       //printf("break:%d\n", i);
       break;
@@ -83,6 +113,7 @@ int main(int argc, char *argv[])
     i++;
   }
 
+<<<<<<< HEAD
   write(sockfd, buffer, sizeof(buffer));
   readSocket(sockfd, buffer, sizeof(buffer));
 
@@ -99,6 +130,15 @@ int main(int argc, char *argv[])
   
   printbufdump(buffer);
   printf("%s", buffer);
+=======
+	printf("send\n");
+  printbufdump(buffer);
+  write(sockfd, buffer, sizeof(buffer));
+  
+	readSocket(sockfd, buffer, sizeof(buffer));
+ 	printf("read\n"); 
+	printbufdump(buffer);
+>>>>>>> ae4dbf51846b5ca4912ddda37489a59611feb00f
 
   return 0;
 }
