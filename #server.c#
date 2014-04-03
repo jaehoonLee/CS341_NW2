@@ -193,21 +193,11 @@ int hasTerminalSignal(char buf[]) {
 
 char removeRedundancy(char memory[]) {
 
-	char former;
-	char current;
-	char *result;
+ 
+  for(
 
-	for (int i = 0; i < strlen(memory); i++) {
-		printf(" %d%c ", i, memory[i]); 	
-		current = memory[i];
 
-		if (former != current) {
-			strcat(result, current);
-			former = current;
-		}
-	}
-
-	return result;
+  return result;
 }
 
 unsigned short checksum(const char *buf, unsigned size)
