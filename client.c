@@ -9,8 +9,9 @@
 #include <netinet/in.h>
 #include <netdb.h>
 
-void printbufdump(char *buf);
-void readSocket(int sockfd, unsigned char negobuf[], int size);
+void printbufdump(unsigned char *buf);
+void printallbuffer(char buffer[], int length);
+void readSocket(int sockfd, char negobuf[], int size);
 
 int main(int argc, char *argv[])
 {
@@ -52,13 +53,11 @@ int main(int argc, char *argv[])
 
   negobuf[0] = 0x01;
   negobuf[1] = 0x01;
-  negobuf[2] = 0x00;
-  negobuf[3] = 0x00;
+  //  negobuf[2] = 0x00;
+  //  negobuf[3] = 0x00;
 
   printbufdump(negobuf);
   write(sockfd, negobuf, 8);
-  readSocket(sockfd, negobuf, 8);
-  printbufdump(negobuf);
   
   /* enter message */
   printf("Please enter ther message: ");
@@ -73,29 +72,24 @@ int main(int argc, char *argv[])
 	buffer[i-1] = '\\';
       buffer[i] = '0';
 
-      printf("break:%d\n", i);
+      //printf("break:%d\n", i);
       break;
     }
-    printf("%c", buffer[i]);
+    //printf("%c", buffer[i]);
 
     i++;
   }
 
   //  printbufdump(buffer);
-  printf("%s\n", buffer);
+  //printf("%s\n", buffer);
+  printallbuffer(buffer, sizeof(buffer));
+  printf("\n\n");
+  //  printbufdump(buffer);
   write(sockfd, buffer, sizeof(buffer));
-  readSocket(sockfd, buffer, sizeof(buffer));
-  printbufdump(buffer);
 
-  /* send message to server */
-  /*
-  bzero(buffer, 256);
-  n = read(sockfd, buffer, 255);
-  if (n < 0){
-    perror("ERROR reading from socket");
-    exit(1);
-  }
-  */
+  readSocket(sockfd, get_buffer, sizeof(get_buffer));
+  printallbuffer(get_buffer, sizeof(get_buffer));
+  printf("\n\n");
 
   return 0;
 }
@@ -112,7 +106,15 @@ void printbufdump(unsigned char *buf)
   printf("\n");
 }
 
-void readSocket(int sockfd, unsigned char negobuf[], int size)
+void printallbuffer(char buffer[], int length)
+{
+  int i = 0;
+  for(i = 0; i < length; i++){
+    printf("%02x ", buffer[i]);
+  }
+}
+
+void readSocket(int sockfd, char negobuf[], int size)
 {
   bzero(negobuf, size);
   int n = read(sockfd, negobuf, size);
