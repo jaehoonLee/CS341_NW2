@@ -15,7 +15,7 @@ unsigned short checksum(const char *buf, unsigned size);
 
 int main(int argc, char *argv[])
 {
-  int sockfd, portno, n, proto_num, i;
+	int sockfd, portno, n, proto_num, i;
   struct sockaddr_in serv_addr;
 
   char negobuf[8];

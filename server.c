@@ -181,10 +181,9 @@ int hasTerminalSignal(char buf[]) {
 
 	for (int i = 0; i < strlen(buf); i++) {
 		if (i!=0) {
-				printf("%d", i);
-	//		printf("%d)%c,%c ", i, buf[i-1], buf[i]); 
-		//	printf("(%d%d%d)", buf[i-1]=='\\', buf[i]==0, buf[i]=='0');
-			if (buf[i] == '0' && buf[i-1] == '\\') {
+//				printf("%d)%c,%c ", i, buf[i-1], buf[i]); 
+	//			printf("(%d%d%d)", buf[i-1] == '\\', buf[i]==0, buf[i]=='0');
+			if (buf[i] == '0'){ // && buf[i-1] == '\\') {
 				printf("******");
 				return 1;
 			}
