@@ -111,10 +111,11 @@ int main(int argc, char *argv[])
 			strcat(memory, &buf);
 			printBuf(memory);
 
+			printf("1\n");
 			if (hasTerminalSignal(buf)) {
-
-				char *result = removeRedundancy(memory);
-
+				printf("2\n");
+				char result[] = removeRedundancy(memory);
+				printf("3\n");
 				write(client_sockfd, result, strlen(result));
 				printf("write\n");
 				printBuf(result);
@@ -224,12 +225,10 @@ char* removeRedundancy(char memory[]) {
 	      *result = strcat(*result, current);
 	    }
 	    former = current;
-	  }
-	  
+	  }	  
 	}
 
 	printBuf(result);
-
 	return result;
 }
 
@@ -258,7 +257,3 @@ unsigned short checksum(const char *buf, unsigned size)
   /* Invert to get the negative in ones-complement arithmetic */
   return ~sum;
 }
-
-
-
-
