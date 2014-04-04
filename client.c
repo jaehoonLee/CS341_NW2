@@ -157,9 +157,8 @@ int main(int argc, char *argv[])
     /* read response from server */
     readSocket(sockfd, buffer, CHUNKSIZE);
     int lastline = 0;
-    //while(1)
+    while(1)
     {
-      printBuf(buffer);
       if(buffer[i] == '\\'){
 	buffer[i] = 0x00;
 	buffer[i+1] = 0x00;
@@ -169,9 +168,11 @@ int main(int argc, char *argv[])
       i++;
       if(i == CHUNKSIZE){
 	printf("%s", buffer);
+	readSocket(sockfd, buffer, CHUNKSIZE);
 	i = 0;
       }
     }
+    printf("%s", buffer);
     printf("\n");
   } else if(proto_num == 2){
 

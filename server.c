@@ -317,13 +317,15 @@ void doprocessing(int client_sockfd, int transId, char memory[]) {
 
       //make protocol 2-2
       int size_str = countBuf(redunt_str)-1;
-      char redunt_buf[BUFSIZE]; 
+      char *redunt_buf = (char*)malloc(size_str+4); 
       redunt_buf[3] = size_str & 0xff; 
       redunt_buf[2] = (size_str >> 8) & 0xff; 
       redunt_buf[1] = (size_str >> 16) & 0xff; 
       redunt_buf[0] = (size_str >> 24) & 0xff; 
-      memcpy(redunt_buf+4, redunt_str, BUFSIZE-4);
-      write(client_sockfd, redunt_buf, BUFSIZE);
+      
+      memcpy(redunt_buf+4, redunt_str, size_str);
+      writeChunk(client_sockfd, redunt_buf, size_str+4);
+      free(redunt_buf);
       free(redunt_str);
       free(allbuf);
       break;
