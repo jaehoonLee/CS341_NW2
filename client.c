@@ -10,7 +10,7 @@
 #include <netdb.h>
 
 void printbufdump(unsigned char *buf);
-void readSocket(int sockfd, unsigned char negobuf[], int size);
+void readSocket(int sockfd, char negobuf[], int size);
 unsigned short checksum(const char *buf, unsigned size);
 
 int main(int argc, char *argv[])
