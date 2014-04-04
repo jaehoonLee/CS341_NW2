@@ -39,19 +39,12 @@ int main(int argc, char *argv[])
     exit(0);
   }
 
-	printf("%s\n", argv[1]);
-	printf("%d\n", (strncmp(argv[1], "-h", strlen(argv[1]))));
-
-	printf( "%d\n", strncmp(argv[1], "-h", strlen(argv[1])) == 0);
-
-	/*
- 	if (!(strncmp(argv[1], "-h", strlen(argv[1]))) &&
-			!(strncmp(argv[3], "-p", strlen(argv[3]))) &&
-			!(strncmp(argv[5], "-m", strlen(argv[3])))) {
+ 	if ((strncmp(argv[1], "-h", strlen(argv[1])) != 0) ||
+			(strncmp(argv[3], "-p", strlen(argv[3])) != 0) ||
+			(strncmp(argv[5], "-m", strlen(argv[5])) != 0)) {
     perror("error! usage : ./client -h 127.0.0.1 -p 9999 -m 2");
     exit(0);
 	}
-	*/
 
   /* create socket */
   sockfd = socket(AF_INET, SOCK_STREAM, 0);
