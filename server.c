@@ -38,15 +38,17 @@ int main(int argc, char *argv[])
 	test[1] = 'a';
 	test[2] = 'b';
 	test[3] = 'c';
+
 	
-	removeRedundancy(test);
+	char * test2 = removeRedundancy(test);
+	printf("%s:%d", test2, sizeof(test2) / sizeof(char));
  
 	if (argc != 2) {
     	printf("Usage : ./server [port]\n"); 
     	exit(0);
   	}
 
-	printf("creating socket");
+	printf("creating socket\n");
 
 	// get address file
 	client_len = sizeof(clientaddr);
@@ -55,7 +57,6 @@ int main(int argc, char *argv[])
 		perror("socket error: ");
 		exit(0);
 	}
-	printf("server socket created\n");
 
 	bzero(&serveraddr, sizeof(serveraddr));
 	serveraddr.sin_family = AF_INET;
@@ -107,14 +108,15 @@ int main(int argc, char *argv[])
 
 			readSocket(client_sockfd, buf, BUFSIZE);			
 			printBuf(buf);
-	
+			
+			/*
 			strcat(memory, &buf);
 			printBuf(memory);
 
 			printf("1\n");
 			if (hasTerminalSignal(buf)) {
 				printf("2\n");
-				char result[] = removeRedundancy(memory);
+				char * result = removeRedundancy(memory);
 				printf("3\n");
 				write(client_sockfd, result, strlen(result));
 				printf("write\n");
@@ -122,6 +124,7 @@ int main(int argc, char *argv[])
 
 				break;
 			}
+			*/
 			//sleep(1);
 		}
 		//	sleep(1);
@@ -208,28 +211,19 @@ int hasTerminalSignal(char buf[]) {
 
 char* removeRedundancy(char memory[]) {
   
-	char former;
-	char current;
-	char *result;
-	int i = 0;
+  char * resultbuf = (char *)malloc(sizeof(memory));
+  int i = 0; int j = 0;
+  for (i = 1; i < sizeof(memory) / sizeof(char); i++) {
+    if(memory[i-1] != memory[i]){
+      resultbuf[j] = memory[i-1];
+      j++;      
+    }
+  }
+  char * finalbuf = (char *)malloc(j);
+  memcpy(finalbuf, resultbuf, j);
+  free(resultbuf);
 
-	printBuf(memory);
-	for (i = 0; i < sizeof(memory) / sizeof(char); i++) {
-	  current = memory[i];
-		
-	  
-	  if (former != current) {
-	    if(result == NULL){
-	      result = &current;
-	    }else{		    
-	      *result = strcat(*result, current);
-	    }
-	    former = current;
-	  }	  
-	}
-
-	printBuf(result);
-	return result;
+  return finalbuf;
 }
 
 unsigned short checksum(const char *buf, unsigned size)
