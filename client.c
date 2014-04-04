@@ -9,9 +9,14 @@
 #include <netinet/in.h>
 #include <netdb.h>
 
+#define CHUNKSIZE 16
+
 void printbufdump(unsigned char *buf);
 void readSocket(int sockfd, char negobuf[], int size);
 unsigned short checksum(const char *buf, unsigned size);
+void writeChunk(int sockfd, char buffer[], int size);
+int checkLastInput(char buf[], int size);
+void printBuf(char buf[]);
 
 int main(int argc, char *argv[])
 {
@@ -19,8 +24,8 @@ int main(int argc, char *argv[])
   struct sockaddr_in serv_addr;
 
   char negobuf[8];
-  char buffer[256];
-  char strbuffer[256];
+  char buffer[CHUNKSIZE];
+  char strbuffer[CHUNKSIZE];
 
   if (argc < 7) {
     fprintf(stderr, "usage %s -h hostname -p port -m protocol \n", argv[0]);
@@ -69,14 +74,29 @@ int main(int argc, char *argv[])
   
   /* enter message */
   printf("Please enter your message: ");
-  bzero(buffer, 256);
-  fgets(buffer, 255, stdin);
+  
+	char* allbuf = (char * ) malloc(CHUNKSIZE);
+	int numberOfChunk = 1;
+	
+	while(1) {
+		bzero(buffer, CHUNKSIZE);
+		fgets(buffer, CHUNKSIZE + 1, stdin);
+
+		memcpy(allbuf+(numberOfChunk-1)*CHUNKSIZE, buffer, CHUNKSIZE);
+
+		if (checkLastInput(buffer, CHUNKSIZE)) {
+			break;
+		}
+
+		numberOfChunk++;
+		allbuf = (char *) realloc(allbuf, numberOfChunk*CHUNKSIZE);
+	}
 
   /* encoding protocol */
   if(proto_num == 1) {    
     /* encoding protocol 2-1 */
     i=0;
-    while(i < 256){
+    while(i < CHUNKSIZE){
       
       if(buffer[i] == 0x00){
 	buffer[i-1] = '\\';
@@ -90,7 +110,7 @@ int main(int argc, char *argv[])
   }else if(proto_num == 2) {
     /* encoding protocol 2-2 */
     i=0;
-    while(i < 256){      
+    while(i < CHUNKSIZE){      
       if(buffer[i] == 0x00){
 	break;
       }
@@ -100,14 +120,16 @@ int main(int argc, char *argv[])
     strbuffer[2] = (i >> 8) & 0xff;
     strbuffer[1] = (i >> 16) & 0xff;
     strbuffer[0] = (i >> 24) & 0xff;
-    memcpy(strbuffer+4, buffer, 256);
+    memcpy(strbuffer+4, buffer, CHUNKSIZE);
   }
-  
+ 
+	printBuf(allbuf);
+
   /* write string to server */
   if(proto_num == 1)
-    write(sockfd, buffer, sizeof(buffer));
+		writeChunk(sockfd, allbuf, sizeof(allbuf));
   else if(proto_num == 2)
-    write(sockfd, strbuffer, sizeof(strbuffer));
+    writeChunk(sockfd, strbuffer, sizeof(strbuffer));
 
   /* read response from server */
   if(proto_num == 1)
@@ -118,7 +140,7 @@ int main(int argc, char *argv[])
   /* decoding protocol 2 */
   i = 0;
   if(proto_num == 1){    
-    while(i < 256){
+    while(i < CHUNKSIZE){
       
       if(buffer[i] == '\\'){
 	buffer[i] = 0x00;
@@ -127,7 +149,7 @@ int main(int argc, char *argv[])
       }
       i++;
     }
-  }else if(proto_num == 2){
+  } else if(proto_num == 2){
     int leng = 0;
 
     leng = leng + strbuffer[0];
@@ -141,7 +163,7 @@ int main(int argc, char *argv[])
 
   
   /* print output */
-  printf("%s", buffer);
+  printf("%s\n", buffer);
 
   return 0;
 }
@@ -172,6 +194,15 @@ unsigned short checksum(const char *buf, unsigned size)
   return ~sum;
 }
 
+void printBuf(char buf[]) {
+	printf("size:%d\n", (int)strlen(buf));
+	int i=0;
+	for (i=0; i<strlen(buf); i++) {
+		printf("%c", buf[i]);
+	}
+	printf("\n");
+}
+
 void printbufdump(unsigned char *buf)
 {
   printf("%d\n", (int)sizeof(buf));
@@ -199,4 +230,27 @@ void readSocket(int sockfd, char negobuf[], int size)
     perror("ERROR reading from socket");
     exit(1);
   }
+}
+
+
+void writeChunk(int sockfd, char buffer[], int size){
+	int i;
+	printf("writeCHUNK\n");
+	for (i = 0; i < (size/CHUNKSIZE)+1; i++){ 
+		// printf("(%d) %d %d /", i, size, CHUNKSIZE);
+		write(sockfd, buffer + i*CHUNKSIZE, CHUNKSIZE);
+	}
+}
+
+int checkLastInput(char buf[], int size)
+{
+	  int i = 0;
+		  for(i = (size - 1); i >= 0; i--){
+				    if(buf[i] == 0x00)
+							      return 1;
+						    else if(buf[i] == EOF)
+									      return 1;
+								  }
+
+			  return 0;
 }

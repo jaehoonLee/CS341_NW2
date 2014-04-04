@@ -8,8 +8,7 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 
-// TODO : fork() for multi process 
-
+#define CHUNKSIZE 256
 #define MEMORYSIZE 4048
 #define BUFSIZE 256
 #define NEGOSIZE 8
@@ -21,6 +20,7 @@ char* removeRedundancy(char *memory, int length);
 unsigned short checksum(const char *buf, unsigned size);
 void printBuf(char buf[]);
 void doprocessing(int client_sockfd, int transId, char memory[]);
+void writeChunk(int sockfd, char buffer[], size);
 
 int main(int argc, char *argv[])
 {
@@ -231,49 +231,51 @@ void doprocessing(int client_sockfd, int transId, char memory[]) {
   int last_str = 0;
   int buf_index = 0;
   char* allbuf;
+	
   // 연결 이후 입력 받는 중
   while(1) {
     
     printf("message reading\n");	  
     char buf[BUFSIZE];
-    if(proto == 1){      
+    if(proto == 1){     
+
       //read from client 
       readSocket(client_sockfd, buf, BUFSIZE);			
       //concat buf to allbut
       if(buf_index == 0){
-	allbuf = (char *)malloc((buf_index + 1) * BUFSIZE);
+				allbuf = (char *)malloc((buf_index + 1) * BUFSIZE);
       }
       else{
-	allbuf = (char *)realloc(allbuf, (buf_index + 1) * BUFSIZE);
+				allbuf = (char *)realloc(allbuf, (buf_index + 1) * BUFSIZE);
       }
       
       //copy read buf to allbuf
       int i = 0;
       for(i = 0; i < BUFSIZE ; i++){
-	allbuf[i + (buf_index * BUFSIZE)] = buf[i]; 
-	if((i + (buf_index * BUFSIZE)) != 0){
-	  if((buf[i-1] == '\\') && (buf[i] == '0')){
-	  last_str = 1;
-	  break;
-	  }
-	}
+				allbuf[i + (buf_index * BUFSIZE)] = buf[i]; 
+				if((i + (buf_index * BUFSIZE)) != 0){
+	  			if((buf[i-1] == '\\') && (buf[i] == '0')){
+	  				last_str = 1;
+	  				break;
+	 	 			}
+				}
       }
       
       //redundancy calculation 
       if(last_str){
-	printBuf(allbuf);
-	char * redunt_str = removeRedundancy(allbuf, (buf_index + 1) * BUFSIZE);
-	printBuf(redunt_str);
-	write(client_sockfd, redunt_str, BUFSIZE);
-	free(redunt_str);
-	free(allbuf);
+			
+				printBuf(allbuf);
+				char * redunt_str = removeRedundancy(allbuf, (buf_index + 1) * BUFSIZE);
+				printBuf(redunt_str);
+				write(client_sockfd, redunt_str, BUFSIZE);
+				free(redunt_str);
+				free(allbuf);
 	
-	break;
+				break;
       }
 
       buf_index++;
-    }
-    else if(proto == 2){
+    } else if(proto == 2){
       //read Socket
       readSocket(client_sockfd, buf, BUFSIZE);			
       int leng = 0;      
@@ -288,9 +290,9 @@ void doprocessing(int client_sockfd, int transId, char memory[]) {
 
       //read whole data
       while((buf_index * BUFSIZE - 4)  < leng){
-	readSocket(client_sockfd, buf, BUFSIZE);
-	memcpy(allbuf + (BUFSIZE-4) + (buf_index - 1) * BUFSIZE, buf, BUFSIZE);
-	buf_index++;
+				readSocket(client_sockfd, buf, BUFSIZE);
+				memcpy(allbuf + (BUFSIZE-4) + (buf_index - 1) * BUFSIZE, buf, BUFSIZE);
+				buf_index++;
       }
        
       //calculate redundancy
@@ -310,8 +312,7 @@ void doprocessing(int client_sockfd, int transId, char memory[]) {
       free(redunt_str);
       free(allbuf);
       break;
-    }
-    else if(proto == -1){
+    } else if(proto == -1){
       readSocket(client_sockfd, buf, BUFSIZE);
       char dummy[1] ={0x00};
       write(client_sockfd, dummy, 1);
@@ -320,7 +321,13 @@ void doprocessing(int client_sockfd, int transId, char memory[]) {
   }
 }
 
-int countBuf(char buf[])
-{
+int countBuf(char buf[]) {
   return strlen(buf);
+}
+
+void writeChunk (int sockfd, char buffer[], int size) {
+	int i;
+	for (i = 0; i < (size/CHUNKSIZE) + 1; i++) {
+		write(sockfd, buffer + i * CHUNKSIZE, CHUNKSIZE);
+	}
 }
