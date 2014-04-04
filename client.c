@@ -17,6 +17,7 @@ unsigned short checksum(const char *buf, unsigned size);
 void writeChunk(int sockfd, char buffer[], int size);
 int checkLastInput(char buf[], int size);
 void printBuf(char buf[]);
+void printBufWithSize(char buf[], int size);
 
 int main(int argc, char *argv[])
 {
@@ -75,95 +76,124 @@ int main(int argc, char *argv[])
   /* enter message */
   printf("Please enter your message: ");
   
-	char* allbuf = (char * ) malloc(CHUNKSIZE);
-	int numberOfChunk = 1;
-	
-	while(1) {
-		bzero(buffer, CHUNKSIZE);
-		fgets(buffer, CHUNKSIZE + 1, stdin);
+  char* allbuf = (char * ) malloc(CHUNKSIZE);
+  int numberOfChunk = 1;
+  int extra = 0;
+  while(1) {
+    bzero(buffer, CHUNKSIZE);
+    fgets(buffer, CHUNKSIZE + 1, stdin);
+    
+    memcpy(allbuf+(numberOfChunk-1)*CHUNKSIZE, buffer, CHUNKSIZE);
+    
+    if (checkLastInput(buffer, CHUNKSIZE)) {
+      /* encoding protocol */
+      if(proto_num == 1) {    
+	/* encoding protocol 2-1 */
+	for(i=(numberOfChunk-1)*CHUNKSIZE; i < numberOfChunk * CHUNKSIZE ;i++){
+	  if(allbuf[i] == 0x00){
+	    allbuf[i-1] = '\\';
+	    allbuf[i] = '0';
+	    //printf("break:%d\n", i);
+	    break;
+	  }
 
-		memcpy(allbuf+(numberOfChunk-1)*CHUNKSIZE, buffer, CHUNKSIZE);
-
-		if (checkLastInput(buffer, CHUNKSIZE)) {
-			break;
-		}
-
-		numberOfChunk++;
-		allbuf = (char *) realloc(allbuf, numberOfChunk*CHUNKSIZE);
+	  if(i==(numberOfChunk * CHUNKSIZE - 1)){
+	    if(allbuf[i] == '\n' || allbuf[i] == EOF){
+	      allbuf =  (char *) realloc(allbuf, numberOfChunk*CHUNKSIZE + 1);
+	      allbuf[i] = '\\';
+	      allbuf[i+1] = '0';
+	      extra = 1;
+	    }	     
+	    else{
+	      allbuf =  (char *) realloc(allbuf, numberOfChunk*CHUNKSIZE + 2);
+	      allbuf[i+1] = '\\';
+	      allbuf[i+2] = '0';
+	      extra = 2;
+	    }
+	  }
 	}
+      }else if(proto_num == 2) {
+	/* encoding protocol 2-2 */
+	allbuf = (char *) realloc(allbuf, numberOfChunk*CHUNKSIZE + 4);
+	memcpy(allbuf+4, allbuf, numberOfChunk*CHUNKSIZE);
+	for(i=(numberOfChunk-1)*CHUNKSIZE; i < numberOfChunk * CHUNKSIZE ;i++){
+	  if(allbuf[i] == '\n' || allbuf[i] == EOF){
+	    break;
+	  }
+	}
+	strbuffer[3] = i & 0xff;
+	strbuffer[2] = (i >> 8) & 0xff;
+	strbuffer[1] = (i >> 16) & 0xff;
+	strbuffer[0] = (i >> 24) & 0xff;
+	memcpy(allbuf, strbuffer, 4);	
+      }
 
-  /* encoding protocol */
-  if(proto_num == 1) {    
-    /* encoding protocol 2-1 */
-    i=0;
-    while(i < CHUNKSIZE){
-      
-      if(buffer[i] == 0x00){
-	buffer[i-1] = '\\';
-	buffer[i] = '0';
-	//printf("break:%d\n", i);
-	break;
-      }
-      //    printf("%c", buffer[i]);      
-      i++;
+      break;
     }
-  }else if(proto_num == 2) {
-    /* encoding protocol 2-2 */
-    i=0;
-    while(i < CHUNKSIZE){      
-      if(buffer[i] == 0x00){
-	break;
-      }
-      i++;
-    }
-    strbuffer[3] = i & 0xff;
-    strbuffer[2] = (i >> 8) & 0xff;
-    strbuffer[1] = (i >> 16) & 0xff;
-    strbuffer[0] = (i >> 24) & 0xff;
-    memcpy(strbuffer+4, buffer, CHUNKSIZE);
+    
+    numberOfChunk++;
+    allbuf = (char *) realloc(allbuf, numberOfChunk*CHUNKSIZE);
   }
- 
-	printBuf(allbuf);
+  
+  //  printBuf(allbuf);
 
   /* write string to server */
   if(proto_num == 1)
-		writeChunk(sockfd, allbuf, sizeof(allbuf));
+    writeChunk(sockfd, allbuf, numberOfChunk*CHUNKSIZE+extra);
   else if(proto_num == 2)
-    writeChunk(sockfd, strbuffer, sizeof(strbuffer));
-
-  /* read response from server */
-  if(proto_num == 1)
-    readSocket(sockfd, buffer, sizeof(buffer));
-  else if(proto_num == 2)
-    readSocket(sockfd, strbuffer, sizeof(strbuffer));
+    writeChunk(sockfd, allbuf, numberOfChunk*CHUNKSIZE + 4);
 
   /* decoding protocol 2 */
   i = 0;
-  if(proto_num == 1){    
-    while(i < CHUNKSIZE){
-      
+  if(proto_num == 1){
+    
+    /* read response from server */
+    readSocket(sockfd, buffer, CHUNKSIZE);
+    int lastline = 0;
+    //while(1)
+    {
+      printBuf(buffer);
       if(buffer[i] == '\\'){
 	buffer[i] = 0x00;
 	buffer[i+1] = 0x00;
+	lastline = 1;
 	break;
       }
       i++;
+      if(i == CHUNKSIZE){
+	printf("%s", buffer);
+	i = 0;
+      }
     }
+    printf("\n");
   } else if(proto_num == 2){
-    int leng = 0;
 
-    leng = leng + strbuffer[0];
-    leng = (leng << 8) + strbuffer[1];
-    leng = (leng << 8) + strbuffer[2];
-    leng = (leng << 8) + strbuffer[3];
-    
-    bzero(buffer, sizeof(buffer));
-    memcpy(buffer, strbuffer+4, leng);
+    /* read response from server */
+    readSocket(sockfd, buffer, CHUNKSIZE);
+
+    char tempbuf[CHUNKSIZE-4];
+    memcpy(tempbuf, buffer+4, CHUNKSIZE-4);
+    printf("%s",tempbuf);
+ 
+    int leng = 0;
+    leng = leng + buffer[0];
+    leng = (leng << 8) + buffer[1];
+    leng = (leng << 8) + buffer[2];
+    leng = (leng << 8) + buffer[3];
+
+    leng = leng - (CHUNKSIZE - 4);
+    while(leng > 0) {
+      bzero(buffer, sizeof(buffer));
+      readSocket(sockfd, buffer, CHUNKSIZE);
+      printf("%s", buffer);
+      leng -= CHUNKSIZE;
+    }
+    printf("\n");
   }
 
   
   /* print output */
-  printf("%s\n", buffer);
+  //  printf("%s\n", buffer);
 
   return 0;
 }
@@ -195,12 +225,21 @@ unsigned short checksum(const char *buf, unsigned size)
 }
 
 void printBuf(char buf[]) {
-	printf("size:%d\n", (int)strlen(buf));
-	int i=0;
-	for (i=0; i<strlen(buf); i++) {
-		printf("%c", buf[i]);
-	}
-	printf("\n");
+  printf("size:%d\n", (int)strlen(buf));
+  int i=0;
+  for (i=0; i<strlen(buf); i++) {
+    printf("%c", buf[i]);
+  }
+  printf("\n");
+}
+
+void printBufWithSize(char buf[], int size) {	
+  printf("size:%d\n", size);
+  int i = 0;
+  for(i = 0; i < size; i++) {
+    printf("%02x", buf[i]);	
+  }
+  printf("\n");
 }
 
 void printbufdump(unsigned char *buf)
@@ -234,23 +273,23 @@ void readSocket(int sockfd, char negobuf[], int size)
 
 
 void writeChunk(int sockfd, char buffer[], int size){
-	int i;
-	printf("writeCHUNK\n");
-	for (i = 0; i < (size/CHUNKSIZE)+1; i++){ 
-		// printf("(%d) %d %d /", i, size, CHUNKSIZE);
-		write(sockfd, buffer + i*CHUNKSIZE, CHUNKSIZE);
-	}
+  int i;
+  printf("writeCHUNK\n");
+  for (i = 0; i < (size/CHUNKSIZE)+1; i++){ 
+    printf("(%d) %d %d \n", i, size, CHUNKSIZE);
+    write(sockfd, buffer + i*CHUNKSIZE, CHUNKSIZE);
+  }
 }
 
 int checkLastInput(char buf[], int size)
 {
-	  int i = 0;
-		  for(i = (size - 1); i >= 0; i--){
-				    if(buf[i] == 0x00)
-							      return 1;
-						    else if(buf[i] == EOF)
-									      return 1;
-								  }
-
-			  return 0;
+  int i = 0;
+  for(i = (size - 1); i >= 0; i--){
+    if(buf[i] == 0x00)
+      return 1;
+    else if(buf[i] == EOF)
+      return 1;
+  }
+  
+  return 0;
 }
