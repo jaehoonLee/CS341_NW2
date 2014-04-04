@@ -20,6 +20,7 @@ int negotiating(int client_sockfd, int transId);
 char* removeRedundancy(char memory[]);
 unsigned short checksum(const char *buf, unsigned size);
 void printBuf(char buf[]);
+void doprocessing(int client_sockfd, int transId, char memory[]);
 
 int main(int argc, char *argv[])
 {
@@ -90,44 +91,25 @@ int main(int argc, char *argv[])
 			exit(0);      
 		}
 
-		// 연결하나 더 생기면 transId ++
-		transId = transId + 1;
 		printf("accepted\n");
 
-		// protocol negotiation
-		int proto = negotiating(client_sockfd, transId);
-	
-		bzero(memory, strlen(memory));
+		pid = fork();
+     
+    if (pid < 0) {
+        perror("ERROR on fork");
+	   		exit(1);
+     }
+        
+     // child proccess
+     if (pid == 0) {
 
-		// 연결 이후 입력 받는 중
-		while(1) {
+     	printf("forked\n");
 
-			printf("message reading\n");
-			
-			char buf[BUFSIZE];
-
-			readSocket(client_sockfd, buf, BUFSIZE);			
-			printBuf(buf);
-			
-			/*
-			strcat(memory, &buf);
-			printBuf(memory);
-
-			printf("1\n");
-			if (hasTerminalSignal(buf)) {
-				printf("2\n");
-				char * result = removeRedundancy(memory);
-				printf("3\n");
-				write(client_sockfd, result, strlen(result));
-				printf("write\n");
-				printBuf(result);
-
-				break;
-			}
-			*/
-			//sleep(1);
-		}
-		//	sleep(1);
+     	transId = transId + 1;
+     	doprocessing(client_sockfd, transId, memory);
+            
+		 	exit(0);
+  	} 
 	}    
 
 	close(client_sockfd);
@@ -250,4 +232,40 @@ unsigned short checksum(const char *buf, unsigned size)
 
   /* Invert to get the negative in ones-complement arithmetic */
   return ~sum;
+}
+
+void doprocessing(int client_sockfd, int transId, char memory[]) {
+
+	// protocol negotiation
+	int proto = negotiating(client_sockfd, transId);
+
+	bzero(memory, strlen(memory));
+
+	// 연결 이후 입력 받는 중
+	while(1) {
+
+		printf("message reading\n");
+		
+		char buf[BUFSIZE];
+
+		readSocket(client_sockfd, buf, BUFSIZE);			
+		printBuf(buf);
+		
+		/*
+		strcat(memory, &buf);
+		printBuf(memory);
+
+		printf("1\n");
+		if (hasTerminalSignal(buf)) {
+			printf("2\n");
+			char * result = removeRedundancy(memory);
+			printf("3\n");
+			write(client_sockfd, result, strlen(result));
+			printf("write\n");
+			printBuf(result);
+
+			break;
+		}
+		*/
+	}
 }

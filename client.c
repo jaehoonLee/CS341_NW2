@@ -45,7 +45,6 @@ int main(int argc, char *argv[])
   serv_addr.sin_addr.s_addr = inet_addr(argv[2]);
   serv_addr.sin_port = htons(portno);
 
-
   /* connect */
   if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0){
     perror("ERROR connecting");
@@ -191,7 +190,7 @@ void printallbuffer(char buffer[], int length)
   }
 }
 
-void readSocket(int sockfd, char negobuf[], int size)
+void readSocket(int sockfd, unsigned char negobuf[], int size)
 {
   bzero(negobuf, size);
   int n = read(sockfd, negobuf, size);
