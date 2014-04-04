@@ -9,15 +9,15 @@
 #include <netinet/in.h>
 #include <netdb.h>
 
-#define CHUNKSIZE 16
+#define CHUNKSIZE 1024
 
 void printbufdump(unsigned char *buf);
+void printBuf(char buf[]);
+void printBufWithSize(char buf[], int size);
+
 void readSocket(int sockfd, char negobuf[], int size);
 unsigned short checksum(const char *buf, unsigned size);
 void writeChunk(int sockfd, char buffer[], int size);
-int checkLastInput(char buf[], int size);
-void printBuf(char buf[]);
-void printBufWithSize(char buf[], int size);
 
 int main(int argc, char *argv[])
 {
@@ -40,12 +40,12 @@ int main(int argc, char *argv[])
     exit(0);
   }
 
- 	if ((strncmp(argv[1], "-h", strlen(argv[1])) != 0) ||
-			(strncmp(argv[3], "-p", strlen(argv[3])) != 0) ||
-			(strncmp(argv[5], "-m", strlen(argv[5])) != 0)) {
-    perror("error! usage : ./client -h 127.0.0.1 -p 9999 -m 2");
+  if ((strncmp(argv[1], "-h", strlen(argv[1])) != 0) ||
+      (strncmp(argv[3], "-p", strlen(argv[3])) != 0) ||
+      (strncmp(argv[5], "-m", strlen(argv[5])) != 0)) {
+    fprintf(stderr, "usage %s -h hostname -p port -m protocol \n", argv[0]);
     exit(0);
-	}
+  }
 
   /* create socket */
   sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -81,98 +81,74 @@ int main(int argc, char *argv[])
   write(sockfd, negobuf, 8);
   
   /* enter message */
-  printf("Please enter your message: ");
+  printf("Please enter your message:\n");
   
-  char* allbuf = (char * ) malloc(CHUNKSIZE);
-  int numberOfChunk = 1;
-  int extra = 0;
-  while(1) {
-    bzero(buffer, CHUNKSIZE);
-    fgets(buffer, CHUNKSIZE + 1, stdin);
-    
-    memcpy(allbuf+(numberOfChunk-1)*CHUNKSIZE, buffer, CHUNKSIZE);
-    
-    if (checkLastInput(buffer, CHUNKSIZE)) {
-      /* encoding protocol */
-      if(proto_num == 1) {    
-	/* encoding protocol 2-1 */
-	for(i=(numberOfChunk-1)*CHUNKSIZE; i < numberOfChunk * CHUNKSIZE ;i++){
-	  if(allbuf[i] == 0x00){
-	    allbuf[i-1] = '\\';
-	    allbuf[i] = '0';
-	    //printf("break:%d\n", i);
-	    break;
-	  }
-
-	  if(i==(numberOfChunk * CHUNKSIZE - 1)){
-	    if(allbuf[i] == '\n' || allbuf[i] == EOF){
-	      allbuf =  (char *) realloc(allbuf, numberOfChunk*CHUNKSIZE + 1);
-	      allbuf[i] = '\\';
-	      allbuf[i+1] = '0';
-	      extra = 1;
-	    }	     
-	    else{
-	      allbuf =  (char *) realloc(allbuf, numberOfChunk*CHUNKSIZE + 2);
-	      allbuf[i+1] = '\\';
-	      allbuf[i+2] = '0';
-	      extra = 2;
-	    }
-	  }
-	}
-      }else if(proto_num == 2) {
-	/* encoding protocol 2-2 */
-	allbuf = (char *) realloc(allbuf, numberOfChunk*CHUNKSIZE + 4);
-	memcpy(allbuf+4, allbuf, numberOfChunk*CHUNKSIZE);
-	for(i=(numberOfChunk-1)*CHUNKSIZE; i < numberOfChunk * CHUNKSIZE ;i++){
-	  if(allbuf[i] == '\n' || allbuf[i] == EOF){
-	    break;
-	  }
-	}
-	strbuffer[3] = i & 0xff;
-	strbuffer[2] = (i >> 8) & 0xff;
-	strbuffer[1] = (i >> 16) & 0xff;
-	strbuffer[0] = (i >> 24) & 0xff;
-	memcpy(allbuf, strbuffer, 4);	
-      }
-
-      break;
-    }
-    
-    numberOfChunk++;
-    allbuf = (char *) realloc(allbuf, numberOfChunk*CHUNKSIZE);
+  char * allbuf = (char *)malloc(1);
+  char buf[CHUNKSIZE];
+  int allbuf_size = 0;
+  while(fgets(buf, 256, stdin) != NULL){
+    char * savedPrePos = allbuf + allbuf_size;
+    allbuf_size += strlen(buf);
+    allbuf = (char*)realloc(allbuf, allbuf_size);
+    memcpy(savedPrePos, buf, strlen(buf));
+    bzero(buf, CHUNKSIZE);
   }
-  
-  //  printBuf(allbuf);
+
+  /* make protocol */
+  if(proto_num == 1) {
+    allbuf = (char*)realloc(allbuf, allbuf_size + 2);
+    allbuf[allbuf_size] = '\\';
+    allbuf[allbuf_size + 1] = '0';
+    printBufWithSize(allbuf, allbuf_size + 2);
+  }
+  else if(proto_num == 2) {
+    allbuf = (char *) realloc(allbuf, allbuf_size + 4);
+    memcpy(allbuf+4, allbuf, allbuf_size);
+    allbuf[3] = allbuf_size & 0xff;
+    allbuf[2] = (allbuf_size >> 8) & 0xff;
+    allbuf[1] = (allbuf_size >> 16) & 0xff;
+    allbuf[0] = (allbuf_size >> 24) & 0xff;
+  }
 
   /* write string to server */
   if(proto_num == 1)
-    writeChunk(sockfd, allbuf, numberOfChunk*CHUNKSIZE+extra);
+    writeChunk(sockfd, allbuf, allbuf_size + 2);
   else if(proto_num == 2)
-    writeChunk(sockfd, allbuf, numberOfChunk*CHUNKSIZE + 4);
+    writeChunk(sockfd, allbuf, allbuf_size + 4);
+
+  /* string free */
+  free(allbuf);
 
   /* decoding protocol 2 */
   i = 0;
+  char * returnbuf = (char*)malloc(1);
+  int returnbuf_size = 0;
   if(proto_num == 1){
     
-    /* read response from server */
-    readSocket(sockfd, buffer, CHUNKSIZE);
-    int lastline = 0;
-    while(1)
-    {
-      if(buffer[i] == '\\'){
-	buffer[i] = 0x00;
-	buffer[i+1] = 0x00;
-	lastline = 1;
+    /* read response from server */    
+    while(1){
+      readSocket(sockfd, buffer, CHUNKSIZE);
+      int prebuf_size = returnbuf_size;
+      returnbuf_size += strlen(buffer);
+      //printf("bufsize:%d\n", returnbuf_size);
+      if(returnbuf_size == 0)
+	continue;
+
+
+      returnbuf = (char*)realloc(returnbuf, returnbuf_size);
+      memcpy(returnbuf + prebuf_size, buffer, strlen(buffer));
+
+      //printf("1:%s %d\n",returnbuf, returnbuf_size);
+      if(returnbuf[returnbuf_size-1] == '0' && returnbuf[returnbuf_size - 2] == '\\'){
+	returnbuf[returnbuf_size-1] = 0x00;
+	returnbuf[returnbuf_size-2] = 0x00;
+	returnbuf = (char *)realloc(returnbuf, returnbuf_size - 2);
 	break;
       }
-      i++;
-      if(i == CHUNKSIZE){
-	printf("%s", buffer);
-	readSocket(sockfd, buffer, CHUNKSIZE);
-	i = 0;
-      }
     }
-    printf("%s", buffer);
+    printf("========================\n");
+    printf("%s", returnbuf);
+    
     printf("\n");
   } else if(proto_num == 2){
 
@@ -182,21 +158,21 @@ int main(int argc, char *argv[])
     char tempbuf[CHUNKSIZE-4];
     memcpy(tempbuf, buffer+4, CHUNKSIZE-4);
     printf("%s",tempbuf);
- 
     int leng = 0;
-    leng = leng + buffer[0];
-    leng = (leng << 8) + buffer[1];
-    leng = (leng << 8) + buffer[2];
-    leng = (leng << 8) + buffer[3];
+    leng = 
+      ((buffer[0] & 0xFF) << 24) |
+      ((buffer[1] & 0xFF) << 16) |
+      ((buffer[2] & 0xFF) << 8) |
+      (buffer[3] & 0xFF);
 
     leng = leng - (CHUNKSIZE - 4);
+
     while(leng > 0) {
       bzero(buffer, sizeof(buffer));
       readSocket(sockfd, buffer, CHUNKSIZE);
       printf("%s", buffer);
       leng -= CHUNKSIZE;
     }
-    printf("\n");
   }
 
   
@@ -245,7 +221,7 @@ void printBufWithSize(char buf[], int size) {
   printf("size:%d\n", size);
   int i = 0;
   for(i = 0; i < size; i++) {
-    printf("%02x", buf[i]);	
+    printf("%c", buf[i]);	
   }
   printf("\n");
 }
@@ -281,23 +257,12 @@ void readSocket(int sockfd, char negobuf[], int size)
 
 
 void writeChunk(int sockfd, char buffer[], int size){
+  
   int i;
-  printf("writeCHUNK\n");
   for (i = 0; i < (size/CHUNKSIZE)+1; i++){ 
-    printf("(%d) %d %d \n", i, size, CHUNKSIZE);
+    //    printf("(%d) %d %d \n", i, size, CHUNKSIZE);
+    //    printBufWithSize(buffer + i*CHUNKSIZE, CHUNKSIZE);
     write(sockfd, buffer + i*CHUNKSIZE, CHUNKSIZE);
   }
 }
 
-int checkLastInput(char buf[], int size)
-{
-  int i = 0;
-  for(i = (size - 1); i >= 0; i--){
-    if(buf[i] == 0x00)
-      return 1;
-    else if(buf[i] == EOF)
-      return 1;
-  }
-  
-  return 0;
-}

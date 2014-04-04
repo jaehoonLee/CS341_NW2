@@ -1,0 +1,16 @@
+#include<stdio.h>
+
+
+int main() 
+{
+  char * allbuf = (char *)ㅁ;
+  char buf[256];
+  int allbuf_size = 0;
+  while(fgets(buf, 256, stdin) != NULL){
+    printf("%d", strlen(buf));
+    allbuf_size += strlen(buf);
+    allbuf = 
+
+  }
+  return 0;
+}
