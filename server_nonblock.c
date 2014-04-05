@@ -20,7 +20,7 @@ char* removeRedundancy(char *memory, int length);
 unsigned short checksum(const char *buf, unsigned size);
 void printBuf(char buf[]);
 void printBufWithSize(char buf[], int size);
-void doprocessing(int client_sockfd, int transId, char memory[]);
+void doprocessing(int client_sockfd, char memory[], int* protocolMap);
 void writeChunk(int sockfd, char buffer[], int size);
 
 int main(int argc, char *argv[])
@@ -49,8 +49,6 @@ int main(int argc, char *argv[])
 		exit(0);
 	}
 
-	printf("serverfd:%d\n", server_sockfd);
-
 	bzero(&serveraddr, sizeof(serveraddr));
 	serveraddr.sin_family = AF_INET;
 	serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -72,36 +70,94 @@ int main(int argc, char *argv[])
 	}
 	printf("listened...\n");
 
-	// 연결
-	while(1) {	  
-	  printf("running.....\n");
-	  client_sockfd = accept(server_sockfd, (struct sockaddr *)&clientaddr, &client_len);
-	 
-		printf("clientfd:%d\n", client_sockfd);
+	/* non-block */
+	fd_set read;
+	fd_set temp;
+	int fdmax;
+	struct timeval timeout;
+	FD_ZERO(&read);
+	FD_ZERO(&temp);
+	FD_SET(server_sockfd, &read);
+	fdmax = server_sockfd;
+	int *protocolMap = (int *)malloc((fdmax+1) * sizeof(int));
 
-	  if(client_sockfd == -1){
-	    perror("Accept error : ");
-	    exit(0);      
-	  }
-	  
-	  printf("accepted\n");
-	  
-	  pid = fork();
-	  
-	  if (pid < 0) {
-	    perror("ERROR on fork");
-	    exit(1);
-	  }
-	  
-	  // child proccess
-	  if (pid == 0) {	    
-	    printf("forked\n");
-	    transId = transId + 1;
-	    doprocessing(client_sockfd, transId, memory);            
-	    close(client_sockfd);
-	    exit(0);
-	  } 
+	// 연결
+	while(1) {	 
+
+		printf("running.....\n");
+
+		//nonblock
+		memcpy(&temp, &read, sizeof(read));
+
+		timeout.tv_sec = 1;
+		timeout.tv_usec = 0;
+
+		int activeNum = select(fdmax+1, &temp, (fd_set *) 0, (fd_set *) 0, &timeout);
+		printf("activeNum:%d\n", activeNum);
+
+		if (activeNum < 0) {
+			//error
+			perror("select");
+			exit(EXIT_FAILURE);
+		} else if (activeNum == 0) {
+			//timeout
+			printf("timeout\n");
+		} else {
+			// 변화가 있는 fd 존재
+			printf("fd change detected\n");
+			int fd;
+			for (fd=0; fd<=fdmax && activeNum>0; fd++) {
+				printf("fd:%d/fdmax:%d\n", fd, fdmax);
+				// 해당 fd에 변화가 있는 경우
+				if (FD_ISSET(fd, &temp)) {
+					printf("setted fd : %d\n", fd); 
+					activeNum -= 1;
+					if(fd==server_sockfd) {
+						printf("its server\n");
+						// 서버 소켓인 경우	
+						//do {
+							client_sockfd = accept(server_sockfd, (struct sockaddr *)&clientaddr, &client_len);
+							if(client_sockfd < 0){
+								perror("Accept error : ");
+								break;      
+							}
+							printf("accepted(%d)\n", client_sockfd);
+					
+							transId++;
+							int proto = negotiating(client_sockfd, transId);
+							
+							FD_SET(client_sockfd, &read);
+							if (client_sockfd > fdmax) {
+								fdmax = client_sockfd;
+								protocolMap = (int *)realloc(protocolMap, (fdmax+1) * sizeof(int));
+							}
+
+							protocolMap[client_sockfd] = proto;
+							printf("SETPROTO %d - %d\n", client_sockfd,
+									protocolMap[client_sockfd]);
+						//} while (client_sockfd != -1);
+					} else {
+						// 연결된 클라이언트 소켓인 경우
+						printf ("its client\n");
+						printf ("descriptor %d is readable %d\n", fd, protocolMap[fd]);
+						doprocessing(fd, memory, protocolMap);	
+						FD_CLR(fd, &read);
+						close(fd);
+					}
+				}
+				printf("[end]fd:%d/fdmax:%d\n", fd, fdmax);
+			}
+		} 
 	}    	
+	
+	free(protocolMap);
+	
+	int i;
+	for (i=0; i <= fdmax; ++i) {
+  	if (FD_ISSET(i, &read))
+    	close(i);
+  }
+
 	return 0;
 }
 
@@ -186,6 +242,31 @@ int negotiating(int client_sockfd, int transId) {
 	return negobuf[1];
 }
 
+char* removeRedundancy(char *memory, int length) {
+  
+  if(length == 0)
+    return NULL;
+
+  char * resultbuf = (char *)malloc(sizeof(length));
+  int i = 0; int j = 0;
+  
+  for (i = 1; i < length; i++) {
+    if(memory[i-1] != memory[i]){
+      resultbuf[j] = memory[i-1];
+      j++;      
+    }
+  }
+  
+  resultbuf[j] = memory[length-1];
+  j++;
+
+  char * finalbuf = (char *)malloc(sizeof(char)*j);
+  memcpy(finalbuf, resultbuf, j);
+  free(resultbuf);
+
+  return finalbuf;
+}
+
 unsigned short checksum(const char *buf, unsigned size)
 {
   unsigned sum = 0;
@@ -212,25 +293,25 @@ unsigned short checksum(const char *buf, unsigned size)
   return ~sum;
 }
 
-void doprocessing(int client_sockfd, int transId, char memory[]) {
-  // protocol negotiation
-  int proto = negotiating(client_sockfd, transId);
+void doprocessing(int client_sockfd, char memory[], int* protocolMap) {
   bzero(memory, strlen(memory));
 
   int last_str = 0;
   int buf_index = 0;
   char* allbuf;
 	
+  int proto = protocolMap[client_sockfd];
+	printf("protocol:%d\n", proto); 
+
   // 연결 이후 입력 받는 중
   while(1) {
-    
     printf("message reading\n");	  
     char buf[BUFSIZE];
     if(proto == 1){     
 
       //read from client 
       readSocket(client_sockfd, buf, BUFSIZE);			
-      //      printBuf(buf);
+      printBuf(buf);
 
       //concat buf to allbut
       if(buf_index == 0){
@@ -255,18 +336,12 @@ void doprocessing(int client_sockfd, int transId, char memory[]) {
       //redundancy calculation 
       if(last_str){
 			
-	printBufWithSize(allbuf, strlen(allbuf));
-	char * redunt_str = removeRedundancy(allbuf, strlen(allbuf));
-	if(redunt_str == NULL){
-	  return;
-	}
-	printBufWithSize(redunt_str, strlen(redunt_str));
-
- 	//int c = countBuf(redunt_str);
-	//printf("count:%d\n", c); 
-	/*printBuf(redunt_str); */
-	//	printf("sssize:%d", strlen(redunt_str));
-	writeChunk(client_sockfd, redunt_str, strlen(redunt_str));
+	printBufWithSize(allbuf, (buf_index + 1) * BUFSIZE);
+	char * redunt_str = removeRedundancy(allbuf, (buf_index + 1) * BUFSIZE);
+	int c = countBuf(redunt_str);
+	printf("count:%d\n", c); 
+	/* printBuf(redunt_str); */
+	writeChunk(client_sockfd, redunt_str, countBuf(redunt_str));
 	//	write(client_sockfd, redunt_str, BUFSIZE);
 	free(redunt_str);
 	free(allbuf);
@@ -302,15 +377,13 @@ void doprocessing(int client_sockfd, int transId, char memory[]) {
 
       //make protocol 2-2
       int size_str = countBuf(redunt_str)-1;
-      char *redunt_buf = (char*)malloc(size_str+4); 
+      char redunt_buf[BUFSIZE]; 
       redunt_buf[3] = size_str & 0xff; 
       redunt_buf[2] = (size_str >> 8) & 0xff; 
       redunt_buf[1] = (size_str >> 16) & 0xff; 
       redunt_buf[0] = (size_str >> 24) & 0xff; 
-      
-      memcpy(redunt_buf+4, redunt_str, size_str);
-      writeChunk(client_sockfd, redunt_buf, size_str+4);
-      free(redunt_buf);
+      memcpy(redunt_buf+4, redunt_str, BUFSIZE-4);
+      write(client_sockfd, redunt_buf, BUFSIZE);
       free(redunt_str);
       free(allbuf);
       break;
@@ -327,55 +400,11 @@ int countBuf(char buf[]) {
   return strlen(buf);
 }
 
-char* removeRedundancy(char *memory, int length) {
-  
-  if(length == 0)
-    return NULL;
-
-  char * resultbuf = (char *)malloc(sizeof(length));
-  int i = 0; int j = 0;
-  
-  for (i = 1; i < length; i++) {
-
-    //'\0'
-    if(memory[i-1] == '\\' && memory[i] == '0' && i == (length-1)){
-      resultbuf[j++] = memory[i-1];
-      continue;
-    }
-
-    if(memory[i-1] != memory[i]){
-      //'\\'
-      if(memory[i-1] == '\\'){	
-	if(i==1) return NULL; //wrong message
-	if(memory[i-2] != '\\') return NULL; //wrong message
-	
-	resultbuf[j++] = '\\';
-	resultbuf[j++] = '\\';
-	continue;
-      }
-      
-      resultbuf[j] = memory[i-1];
-      j++;      
-    }
-  }
-  
-  //'0'
-  resultbuf[j] = memory[length-1];
-  j++;
-
-  char * finalbuf = (char *)malloc(sizeof(char)*j);
-  memcpy(finalbuf, resultbuf, j);
-  free(resultbuf);
-
-  return finalbuf;
-}
-
 void writeChunk (int sockfd, char buffer[], int size) 
 {
   int i;
-  //printf("total:%d", (size/CHUNKSIZE));
+  printf("total:%d", (size/CHUNKSIZE));
   for (i = 0; i < (size/CHUNKSIZE) + 1; i++) {
-    //    printBufWithSize(buffer + i * CHUNKSIZE, CHUNKSIZE);
     write(sockfd, buffer + i * CHUNKSIZE, CHUNKSIZE);
   }
 }
