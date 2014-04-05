@@ -331,6 +331,7 @@ char* removeRedundancy(char *memory, int length) {
   
   for (i = 1; i < length; i++) {
     if(memory[i-1] != memory[i]){
+
       resultbuf[j] = memory[i-1];
       j++;      
     }
