@@ -163,7 +163,7 @@ int main(int argc, char *argv[])
     printf("========================\n");
     printf("%s", returnbuf);
     //    free(returnbuf);
-    printf("\n");
+    //    printf("\n");
    
   } else if(proto_num == 2){
 

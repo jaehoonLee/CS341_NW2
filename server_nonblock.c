@@ -8,9 +8,9 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 
-#define CHUNKSIZE 16
+#define CHUNKSIZE 1024
 #define MEMORYSIZE 4048
-#define BUFSIZE 16
+#define BUFSIZE 1024
 #define NEGOSIZE 8
 
 void readSocket(int sockfd, unsigned char buf[], int size);
@@ -356,8 +356,8 @@ void doprocessing(int client_sockfd, char memory[], int* protocolMap) {
 	writeChunk(client_sockfd, redunt_str, strlen(redunt_str));
 	//	write(client_sockfd, redunt_str, BUFSIZE);
 	//free(redunt_str);
-	free(allbuf);
-	
+	//free(allbuf);
+	//	free(redunt_str);
 	break;
       }
 
