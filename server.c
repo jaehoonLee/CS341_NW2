@@ -255,12 +255,15 @@ void doprocessing(int client_sockfd, int transId, char memory[]) {
       //redundancy calculation 
       if(last_str){
 			
-	printBufWithSize(allbuf, strlen(allbuf));
-	char * redunt_str = removeRedundancy(allbuf, strlen(allbuf));
+	//	printBufWithSize(allbuf, strlen(allbuf));
+	char * redunt_str = removeRedundancy(allbuf, (buf_index + 1) * BUFSIZE);
+	printf("HELLO");
 	if(redunt_str == NULL){
+	  printf("HELLO2");
 	  return;
 	}
-	printBufWithSize(redunt_str, strlen(redunt_str));
+	//printf("size:%d", strlen(redunt_str));
+	//	printBufWithSize(redunt_str, (buf_index + 1) * BUFSIZE);
 
  	//int c = countBuf(redunt_str);
 	//printf("count:%d\n", c); 
@@ -268,8 +271,8 @@ void doprocessing(int client_sockfd, int transId, char memory[]) {
 	//	printf("sssize:%d", strlen(redunt_str));
 	writeChunk(client_sockfd, redunt_str, strlen(redunt_str));
 	//	write(client_sockfd, redunt_str, BUFSIZE);
-	free(redunt_str);
-	free(allbuf);
+	//free(redunt_str);
+	//free(allbuf);
 	
 	break;
       }
@@ -279,26 +282,34 @@ void doprocessing(int client_sockfd, int transId, char memory[]) {
       //read Socket
       readSocket(client_sockfd, buf, BUFSIZE);			
       int leng = 0;      
-      leng = leng + buf[0];
-      leng = (leng << 8) + buf[1];
-      leng = (leng << 8) + buf[2];
-      leng = (leng << 8) + buf[3];
-      
-      allbuf = (char *)malloc(leng + BUFSIZE);
-      memcpy(allbuf, buf+4, BUFSIZE - 4); 
+      leng = ((buf[0] & 0xFF) << 24) |
+      ((buf[1] & 0xFF) << 16) |
+      ((buf[2] & 0xFF) << 8) |
+      (buf[3] & 0xFF);
+
+      allbuf = (char *)malloc(leng);
+      memcpy(allbuf, buf+4, strlen(buf+4)); 
       buf_index = 1;
+      printBufWithSize(buf+4,strlen(buf+4));
 
       //read whole data
-      while((buf_index * BUFSIZE - 4)  < leng){
+      int leng_con_size = strlen(buf+4);
+      while(leng_con_size  < leng){
+	bzero(buf, BUFSIZE);
 	readSocket(client_sockfd, buf, BUFSIZE);
-	memcpy(allbuf + (BUFSIZE-4) + (buf_index - 1) * BUFSIZE, buf, BUFSIZE);
+	printBufWithSize(buf, strlen(buf));
+	memcpy(allbuf + leng_con_size, buf, strlen(buf));
+	leng_con_size += strlen(buf);
+	//	printf(": leng_con_size:%d\n", leng_con_size);
 	buf_index++;
       }
        
+      printf("\n");
       //calculate redundancy
-      printBuf(allbuf);
-      char * redunt_str = removeRedundancy(allbuf, leng + BUFSIZE);
-      printBuf(redunt_str);
+      printBufWithSize(allbuf, leng);
+      char * redunt_str = removeRedundancy(allbuf, leng);
+      //      printBuf(redunt_str);
+
 
       //make protocol 2-2
       int size_str = countBuf(redunt_str)-1;
@@ -338,7 +349,7 @@ char* removeRedundancy(char *memory, int length) {
   for (i = 1; i < length; i++) {
 
     //'\0'
-    if(memory[i-1] == '\\' && memory[i] == '0' && i == (length-1)){
+    if(memory[i-1] == '\\' && memory[i] == '0'){
       resultbuf[j++] = memory[i-1];
       continue;
     }
@@ -363,11 +374,11 @@ char* removeRedundancy(char *memory, int length) {
   resultbuf[j] = memory[length-1];
   j++;
 
-  char * finalbuf = (char *)malloc(sizeof(char)*j);
-  memcpy(finalbuf, resultbuf, j);
-  free(resultbuf);
+  //char * finalbuf = (char *)malloc(sizeof(char)*j);
+  //memcpy(finalbuf, resultbuf, j);
+  //  free(resultbuf);
 
-  return finalbuf;
+  return resultbuf;
 }
 
 void writeChunk (int sockfd, char buffer[], int size) 
