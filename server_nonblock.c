@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
 	FD_ZERO(&temp);
 	FD_SET(server_sockfd, &read);
 	fdmax = server_sockfd;
-	int *protocolMap = (int *)malloc((fdmax) * sizeof(int));
+	int *protocolMap = (int *)malloc((fdmax+1) * sizeof(int));
 
 	// 연결
 	while(1) {	 
@@ -87,13 +87,13 @@ int main(int argc, char *argv[])
 		printf("running.....\n");
 
 		//nonblock
-		//temp = read;
 		memcpy(&temp, &read, sizeof(read));
 
 		timeout.tv_sec = 1;
 		timeout.tv_usec = 0;
 
 		int activeNum = select(fdmax+1, &temp, (fd_set *) 0, (fd_set *) 0, &timeout);
+		printf("activeNum:%d\n", activeNum);
 
 		if (activeNum < 0) {
 			//error
@@ -107,7 +107,7 @@ int main(int argc, char *argv[])
 			printf("fd change detected\n");
 			int fd;
 			for (fd=0; fd<=fdmax && activeNum>0; fd++) {
-				printf("fd:%d\n", fd);
+				printf("fd:%d/fdmax:%d\n", fd, fdmax);
 				// 해당 fd에 변화가 있는 경우
 				if (FD_ISSET(fd, &temp)) {
 					printf("setted fd : %d\n", fd); 
@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
 								perror("Accept error : ");
 								break;      
 							}
-							printf("accepted\n");
+							printf("accepted(%d)\n", client_sockfd);
 					
 							transId++;
 							int proto = negotiating(client_sockfd, transId);
@@ -129,29 +129,34 @@ int main(int argc, char *argv[])
 							FD_SET(client_sockfd, &read);
 							if (client_sockfd > fdmax) {
 								fdmax = client_sockfd;
-								protocolMap = (int *)realloc(protocolMap, (fdmax) * sizeof(int));
+								protocolMap = (int *)realloc(protocolMap, (fdmax+1) * sizeof(int));
 							}
 
 							protocolMap[client_sockfd] = proto;
-
+							printf("SETPROTO %d - %d\n", client_sockfd,
+									protocolMap[client_sockfd]);
 						//} while (client_sockfd != -1);
 					} else {
 						// 연결된 클라이언트 소켓인 경우
 						printf ("its client\n");
-						printf ("descriptor %d is readable\n", fd);
+						printf ("descriptor %d is readable %d\n", fd, protocolMap[fd]);
 						doprocessing(fd, memory, protocolMap);	
+						FD_CLR(fd, &read);
 						close(fd);
 					}
 				}
+				printf("[end]fd:%d/fdmax:%d\n", fd, fdmax);
 			}
 		} 
 	}    	
-
+	
+	free(protocolMap);
+	
 	int i;
 	for (i=0; i <= fdmax; ++i) {
-      if (FD_ISSET(i, &read))
-         close(i);
-    }
+  	if (FD_ISSET(i, &read))
+    	close(i);
+  }
 
 	return 0;
 }
@@ -300,7 +305,6 @@ void doprocessing(int client_sockfd, char memory[], int* protocolMap) {
 
   // 연결 이후 입력 받는 중
   while(1) {
-    
     printf("message reading\n");	  
     char buf[BUFSIZE];
     if(proto == 1){     
