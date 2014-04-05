@@ -17,6 +17,7 @@ void readSocket(int sockfd, unsigned char buf[], int size);
 void printbufdump(unsigned char *buf);
 int negotiating(int client_sockfd, int transId);
 char* removeRedundancy(char *memory, int length);
+char* removeRedundancy2(char *memory, int length);
 unsigned short checksum(const char *buf, unsigned size);
 void printBuf(char buf[]);
 void printBufWithSize(char buf[], int size);
@@ -93,7 +94,6 @@ int main(int argc, char *argv[])
 		timeout.tv_usec = 0;
 
 		int activeNum = select(fdmax+1, &temp, (fd_set *) 0, (fd_set *) 0, &timeout);
-		printf("activeNum:%d\n", activeNum);
 
 		if (activeNum < 0) {
 			//error
@@ -104,16 +104,12 @@ int main(int argc, char *argv[])
 			printf("timeout\n");
 		} else {
 			// 변화가 있는 fd 존재
-			printf("fd change detected\n");
 			int fd;
 			for (fd=0; fd<=fdmax && activeNum>0; fd++) {
-				printf("fd:%d/fdmax:%d\n", fd, fdmax);
 				// 해당 fd에 변화가 있는 경우
 				if (FD_ISSET(fd, &temp)) {
-					printf("setted fd : %d\n", fd); 
 					activeNum -= 1;
 					if(fd==server_sockfd) {
-						printf("its server\n");
 						// 서버 소켓인 경우	
 						//do {
 							client_sockfd = accept(server_sockfd, (struct sockaddr *)&clientaddr, &client_len);
@@ -121,7 +117,6 @@ int main(int argc, char *argv[])
 								perror("Accept error : ");
 								break;      
 							}
-							printf("accepted(%d)\n", client_sockfd);
 					
 							transId++;
 							int proto = negotiating(client_sockfd, transId);
@@ -133,19 +128,15 @@ int main(int argc, char *argv[])
 							}
 
 							protocolMap[client_sockfd] = proto;
-							printf("SETPROTO %d - %d\n", client_sockfd,
-									protocolMap[client_sockfd]);
+							
 						//} while (client_sockfd != -1);
 					} else {
 						// 연결된 클라이언트 소켓인 경우
-						printf ("its client\n");
-						printf ("descriptor %d is readable %d\n", fd, protocolMap[fd]);
 						doprocessing(fd, memory, protocolMap);	
 						FD_CLR(fd, &read);
 						close(fd);
 					}
 				}
-				printf("[end]fd:%d/fdmax:%d\n", fd, fdmax);
 			}
 		} 
 	}    	
@@ -218,12 +209,7 @@ int negotiating(int client_sockfd, int transId) {
 	negobuf[3] = (cs >> 8) & 0xff;
 	
 	write(client_sockfd, negobuf, NEGOSIZE);
-	printf("write\n");
-	printbufdump(negobuf);
-
 	readSocket(client_sockfd, negobuf, NEGOSIZE);
-	printf("read\n");
-	printbufdump(negobuf);
 	
 	//checksum check
 	char negobuf_check[8];
@@ -251,20 +237,38 @@ char* removeRedundancy(char *memory, int length) {
   int i = 0; int j = 0;
   
   for (i = 1; i < length; i++) {
+
+    //'\0'
+    if(memory[i-1] == '\\' && memory[i] == '0'){
+      resultbuf[j++] = memory[i-1];
+      continue;
+    }
+
     if(memory[i-1] != memory[i]){
+      //'\\'
+      if(memory[i-1] == '\\'){	
+	if(i==1) return NULL; //wrong message
+	if(memory[i-2] != '\\') return NULL; //wrong message
+	
+	resultbuf[j++] = '\\';
+	resultbuf[j++] = '\\';
+	continue;
+      }
+      
       resultbuf[j] = memory[i-1];
       j++;      
     }
   }
   
+  //'0'
   resultbuf[j] = memory[length-1];
   j++;
 
-  char * finalbuf = (char *)malloc(sizeof(char)*j);
-  memcpy(finalbuf, resultbuf, j);
-  free(resultbuf);
+  //char * finalbuf = (char *)malloc(sizeof(char)*j);
+  //memcpy(finalbuf, resultbuf, j);
+  //  free(resultbuf);
 
-  return finalbuf;
+  return resultbuf;
 }
 
 unsigned short checksum(const char *buf, unsigned size)
@@ -305,13 +309,14 @@ void doprocessing(int client_sockfd, char memory[], int* protocolMap) {
 
   // 연결 이후 입력 받는 중
   while(1) {
+    
     printf("message reading\n");	  
     char buf[BUFSIZE];
     if(proto == 1){     
 
       //read from client 
       readSocket(client_sockfd, buf, BUFSIZE);			
-      printBuf(buf);
+      //      printBuf(buf);
 
       //concat buf to allbut
       if(buf_index == 0){
@@ -336,14 +341,21 @@ void doprocessing(int client_sockfd, char memory[], int* protocolMap) {
       //redundancy calculation 
       if(last_str){
 			
-	printBufWithSize(allbuf, (buf_index + 1) * BUFSIZE);
+	//	printBufWithSize(allbuf, strlen(allbuf));
 	char * redunt_str = removeRedundancy(allbuf, (buf_index + 1) * BUFSIZE);
-	int c = countBuf(redunt_str);
-	printf("count:%d\n", c); 
-	/* printBuf(redunt_str); */
-	writeChunk(client_sockfd, redunt_str, countBuf(redunt_str));
+	if(redunt_str == NULL){
+	  return;
+	}
+	//printf("size:%d", strlen(redunt_str));
+	//	printBufWithSize(redunt_str, (buf_index + 1) * BUFSIZE);
+
+ 	//int c = countBuf(redunt_str);
+	//printf("count:%d\n", c); 
+	/*printBuf(redunt_str); */
+	//	printf("sssize:%d", strlen(redunt_str));
+	writeChunk(client_sockfd, redunt_str, strlen(redunt_str));
 	//	write(client_sockfd, redunt_str, BUFSIZE);
-	free(redunt_str);
+	//free(redunt_str);
 	free(allbuf);
 	
 	break;
@@ -352,40 +364,52 @@ void doprocessing(int client_sockfd, char memory[], int* protocolMap) {
       buf_index++;
     } else if(proto == 2){
       //read Socket
+      bzero(buf, BUFSIZE);
       readSocket(client_sockfd, buf, BUFSIZE);			
       int leng = 0;      
-      leng = leng + buf[0];
-      leng = (leng << 8) + buf[1];
-      leng = (leng << 8) + buf[2];
-      leng = (leng << 8) + buf[3];
-      
-      allbuf = (char *)malloc(leng + BUFSIZE);
-      memcpy(allbuf, buf+4, BUFSIZE - 4); 
+      leng = ((buf[0] & 0xFF) << 24) |
+      ((buf[1] & 0xFF) << 16) |
+      ((buf[2] & 0xFF) << 8) |
+      (buf[3] & 0xFF);
+
+      allbuf = (char *)malloc(leng);
+      memcpy(allbuf, buf+4, strlen(buf+4)); 
       buf_index = 1;
 
       //read whole data
-      while((buf_index * BUFSIZE - 4)  < leng){
+      int leng_con_size = strlen(buf+4);
+      while(leng_con_size  < leng){
+	bzero(buf, BUFSIZE);
 	readSocket(client_sockfd, buf, BUFSIZE);
-	memcpy(allbuf + (BUFSIZE-4) + (buf_index - 1) * BUFSIZE, buf, BUFSIZE);
+	memcpy(allbuf + leng_con_size, buf, strlen(buf));
+	leng_con_size += strlen(buf);
+	//	printf(": leng_con_size:%d\n", leng_con_size);
 	buf_index++;
       }
        
       //calculate redundancy
-      printBuf(allbuf);
-      char * redunt_str = removeRedundancy(allbuf, leng + BUFSIZE);
-      printBuf(redunt_str);
+      //printBufWithSize(allbuf, leng);
+      char * redunt_buf = (char*)malloc(leng+4); 
+      char * redunt_str = removeRedundancy2(allbuf, leng);
+
 
       //make protocol 2-2
-      int size_str = countBuf(redunt_str)-1;
-      char redunt_buf[BUFSIZE]; 
+      
+      int size_str = strlen(redunt_str);
+
       redunt_buf[3] = size_str & 0xff; 
       redunt_buf[2] = (size_str >> 8) & 0xff; 
       redunt_buf[1] = (size_str >> 16) & 0xff; 
       redunt_buf[0] = (size_str >> 24) & 0xff; 
-      memcpy(redunt_buf+4, redunt_str, BUFSIZE-4);
-      write(client_sockfd, redunt_buf, BUFSIZE);
-      free(redunt_str);
+
+      memcpy(redunt_buf+4, redunt_str, strlen(redunt_str));
+      
+      writeChunk(client_sockfd, redunt_buf, size_str+4);
+      
+      //free(redunt_buf);
+      //free(redunt_str);
       free(allbuf);
+      
       break;
     } else if(proto == -1){
       readSocket(client_sockfd, buf, BUFSIZE);
@@ -394,6 +418,33 @@ void doprocessing(int client_sockfd, char memory[], int* protocolMap) {
       break;
     }
   }
+}
+
+char* removeRedundancy2(char *memory, int length) {
+  
+  if(length == 0)
+    return NULL;
+
+  char * resultbuf = (char *)malloc(sizeof(length+4));
+  int i = 0; int j = 0;
+  
+  for (i = 1; i < length; i++) {
+    if(memory[i-1] != memory[i]){
+      
+      resultbuf[j] = memory[i-1];
+      j++;      
+    }
+  }
+  
+  //'0'
+  resultbuf[j] = memory[length-1];
+  j++;
+
+  //char * finalbuf = (char *)malloc(sizeof(char)*j);
+  //memcpy(finalbuf, resultbuf, j);
+  //  free(resultbuf);
+
+  return resultbuf;
 }
 
 int countBuf(char buf[]) {
@@ -408,3 +459,8 @@ void writeChunk (int sockfd, char buffer[], int size)
     write(sockfd, buffer + i * CHUNKSIZE, CHUNKSIZE);
   }
 }
+
+
+
+
+
