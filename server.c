@@ -8,7 +8,7 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 
-#define CHUNKSIZE 16
+#define CHUNKSIZE 1024
 #define MEMORYSIZE 4048
 #define BUFSIZE 16
 #define NEGOSIZE 8
@@ -306,6 +306,7 @@ void doprocessing(int client_sockfd, int transId, char memory[]) {
        
       //calculate redundancy
       //printBufWithSize(allbuf, leng);
+      char * redunt_buf = (char*)malloc(leng+4); 
       char * redunt_str = removeRedundancy(allbuf, leng);
       printBufWithSize(redunt_str, leng);
 
@@ -314,18 +315,19 @@ void doprocessing(int client_sockfd, int transId, char memory[]) {
       
       int size_str = strlen(redunt_str);
       printf("size!!!:%d\n", strlen(redunt_str));
-      //      char * redunt_buf = (char*)malloc(size_str + 4); 
       printf("size!!!:%d\n", strlen(redunt_str));
-      redunt_str[3] = size_str & 0xff; 
-      redunt_str[2] = (size_str >> 8) & 0xff; 
-      redunt_str[1] = (size_str >> 16) & 0xff; 
-      redunt_str[0] = (size_str >> 24) & 0xff; 
+
+      redunt_buf[3] = size_str & 0xff; 
+      redunt_buf[2] = (size_str >> 8) & 0xff; 
+      redunt_buf[1] = (size_str >> 16) & 0xff; 
+      redunt_buf[0] = (size_str >> 24) & 0xff; 
       printf("size!!!:%d\n", strlen(redunt_str+4));
+
       printBufWithSize(redunt_str, strlen(redunt_str));
-      //memcpy(redunt_buf+4, redunt_str, strlen(redunt_str));
-      //      printBufWithSize(redunt_buf+4, strlen(redunt_buf+4));
+      memcpy(redunt_buf+4, redunt_str, strlen(redunt_str));
+      printBufWithSize(redunt_buf+4, strlen(redunt_buf+4));
       
-      //      writeChunk(client_sockfd, redunt_buf, size_str+4);
+      writeChunk(client_sockfd, redunt_buf, size_str+4);
       
       //free(redunt_buf);
       //free(redunt_str);
@@ -436,7 +438,8 @@ void writeChunk (int sockfd, char buffer[], int size)
   int i;
   printf("total:%d", (size/CHUNKSIZE));
   for (i = 0; i < (size/CHUNKSIZE) + 1; i++) {
-    //    printBufWithSize(buffer + i * CHUNKSIZE, CHUNKSIZE);
+    printf("chunk%d", i);
+    printBufWithSize(buffer + i * CHUNKSIZE, CHUNKSIZE);
     write(sockfd, buffer + i * CHUNKSIZE, CHUNKSIZE);
   }
 }

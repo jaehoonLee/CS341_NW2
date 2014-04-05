@@ -179,11 +179,14 @@ int main(int argc, char *argv[])
       ((buffer[1] & 0xFF) << 16) |
       ((buffer[2] & 0xFF) << 8) |
       (buffer[3] & 0xFF);
-    printf("\n%d", leng);
 
+    printf("leng:%d!!\n", leng);
     leng = leng - (CHUNKSIZE - 4);
 
+
+    printf("leng:%d!!\n", leng);
     while(leng > 0) {
+      printf("%d", leng);
       bzero(buffer, sizeof(buffer));
       readSocket(sockfd, buffer, CHUNKSIZE);
       printf("%s", buffer);
