@@ -98,10 +98,10 @@ int main(int argc, char *argv[])
 	    printf("forked\n");
 	    transId = transId + 1;
 	    doprocessing(client_sockfd, transId, memory);            
+	    close(client_sockfd);
 	    exit(0);
 	  } 
 	}    	
-	close(client_sockfd);
 	return 0;
 }
 
@@ -230,7 +230,7 @@ void doprocessing(int client_sockfd, int transId, char memory[]) {
 
       //read from client 
       readSocket(client_sockfd, buf, BUFSIZE);			
-      printBuf(buf);
+      //      printBuf(buf);
 
       //concat buf to allbut
       if(buf_index == 0){
@@ -255,12 +255,18 @@ void doprocessing(int client_sockfd, int transId, char memory[]) {
       //redundancy calculation 
       if(last_str){
 			
-	printBufWithSize(allbuf, (buf_index + 1) * BUFSIZE);
-	char * redunt_str = removeRedundancy(allbuf, (buf_index + 1) * BUFSIZE);
-	int c = countBuf(redunt_str);
-	printf("count:%d\n", c); 
-	/* printBuf(redunt_str); */
-	writeChunk(client_sockfd, redunt_str, countBuf(redunt_str));
+	printBufWithSize(allbuf, strlen(allbuf));
+	char * redunt_str = removeRedundancy(allbuf, strlen(allbuf));
+	if(redunt_str == NULL){
+	  return;
+	}
+	printBufWithSize(redunt_str, strlen(redunt_str));
+
+ 	//int c = countBuf(redunt_str);
+	//printf("count:%d\n", c); 
+	/*printBuf(redunt_str); */
+	//	printf("sssize:%d", strlen(redunt_str));
+	writeChunk(client_sockfd, redunt_str, strlen(redunt_str));
 	//	write(client_sockfd, redunt_str, BUFSIZE);
 	free(redunt_str);
 	free(allbuf);
@@ -330,12 +336,30 @@ char* removeRedundancy(char *memory, int length) {
   int i = 0; int j = 0;
   
   for (i = 1; i < length; i++) {
+
+    //'\0'
+    if(memory[i-1] == '\\' && memory[i] == '0' && i == (length-1)){
+      resultbuf[j++] = memory[i-1];
+      continue;
+    }
+
     if(memory[i-1] != memory[i]){
+      //'\\'
+      if(memory[i-1] == '\\'){	
+	if(i==1) return NULL; //wrong message
+	if(memory[i-2] != '\\') return NULL; //wrong message
+	
+	resultbuf[j++] = '\\';
+	resultbuf[j++] = '\\';
+	continue;
+      }
+      
       resultbuf[j] = memory[i-1];
       j++;      
     }
   }
   
+  //'0'
   resultbuf[j] = memory[length-1];
   j++;
 
@@ -349,8 +373,9 @@ char* removeRedundancy(char *memory, int length) {
 void writeChunk (int sockfd, char buffer[], int size) 
 {
   int i;
-  printf("total:%d", (size/CHUNKSIZE));
+  //printf("total:%d", (size/CHUNKSIZE));
   for (i = 0; i < (size/CHUNKSIZE) + 1; i++) {
+    //    printBufWithSize(buffer + i * CHUNKSIZE, CHUNKSIZE);
     write(sockfd, buffer + i * CHUNKSIZE, CHUNKSIZE);
   }
 }
