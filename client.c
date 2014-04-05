@@ -131,8 +131,8 @@ int main(int argc, char *argv[])
 
   /* decoding protocol 2 */
   i = 0;
-  char * returnbuf = (char *)malloc(allbuf_size);
-  int returnbuf_size = 0; int returnbuf_last = 0;
+  char * returnbuf = (char *)malloc(1);
+  int returnbuf_size = 0;
   if(proto_num == 1){
     
     /* read response from server */    
@@ -145,15 +145,13 @@ int main(int argc, char *argv[])
       if(returnbuf_size == 0)
 	continue;
       
-      //      returnbuf = (char*)realloc(returnbuf, returnbuf_size);
+      returnbuf = (char*)realloc(returnbuf, returnbuf_size);
       memcpy(returnbuf + prebuf_size, buffer, strlen(buffer));
-      printf("1:%s %d\n",returnbuf, returnbuf_size);
-      returnbuf_last = strlen(returnbuf);
 
-      if(returnbuf[returnbuf_last-1] == '0' && returnbuf[returnbuf_last - 2] == '\\'){
+      if(returnbuf[returnbuf_size-1] == '0' && returnbuf[returnbuf_size - 2] == '\\'){
 	returnbuf[returnbuf_size-1] = 0x00;
 	returnbuf[returnbuf_size-2] = 0x00;
-	//	returnbuf = (char *)realloc(returnbuf, returnbuf_size - 2);
+	returnbuf = (char *)realloc(returnbuf, returnbuf_size - 2);
 	break;
       }
       
