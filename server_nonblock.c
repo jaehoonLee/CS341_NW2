@@ -20,14 +20,14 @@ char* removeRedundancy(char *memory, int length);
 unsigned short checksum(const char *buf, unsigned size);
 void printBuf(char buf[]);
 void printBufWithSize(char buf[], int size);
-void doprocessing(int client_sockfd, int transId, char memory[]);
+void doprocessing(int client_sockfd, char memory[], int* protocolMap);
 void writeChunk(int sockfd, char buffer[], int size);
 
 int main(int argc, char *argv[])
 {
 	int server_sockfd, client_sockfd;
 	int state, client_len;
-  int pid;
+  	int pid;
 	int transId = 0;
 
 	char memory[MEMORYSIZE];
@@ -79,6 +79,7 @@ int main(int argc, char *argv[])
 	FD_ZERO(&temp);
 	FD_SET(server_sockfd, &read);
 	fdmax = server_sockfd;
+	int *protocolMap = (int *)malloc((fdmax) * sizeof(int));
 
 	// 연결
 	while(1) {	 
@@ -86,13 +87,13 @@ int main(int argc, char *argv[])
 		printf("running.....\n");
 
 		//nonblock
-		temp = master;
-		// memcpy(&temp, &read, sizeof(read));
+		//temp = read;
+		memcpy(&temp, &read, sizeof(read));
 
 		timeout.tv_sec = 1;
 		timeout.tv_usec = 0;
 
-		int activeNum = select(fdmax+1, &read, (fd_set *) 0, (fd_set *) 0, &timeout);
+		int activeNum = select(fdmax+1, &temp, (fd_set *) 0, (fd_set *) 0, &timeout);
 
 		if (activeNum < 0) {
 			//error
@@ -103,14 +104,18 @@ int main(int argc, char *argv[])
 			printf("timeout\n");
 		} else {
 			// 변화가 있는 fd 존재
+			printf("fd change detected\n");
 			int fd;
-			for (fd=0; i<=fdmax && activNum>0; i++) {
+			for (fd=0; fd<=fdmax && activeNum>0; fd++) {
+				printf("fd:%d\n", fd);
 				// 해당 fd에 변화가 있는 경우
 				if (FD_ISSET(fd, &temp)) {
+					printf("setted fd : %d\n", fd); 
 					activeNum -= 1;
-					if(i==server_sockfd) {
+					if(fd==server_sockfd) {
+						printf("its server\n");
 						// 서버 소켓인 경우	
-						do {
+						//do {
 							client_sockfd = accept(server_sockfd, (struct sockaddr *)&clientaddr, &client_len);
 							if(client_sockfd < 0){
 								perror("Accept error : ");
@@ -118,21 +123,36 @@ int main(int argc, char *argv[])
 							}
 							printf("accepted\n");
 					
+							transId++;
+							int proto = negotiating(client_sockfd, transId);
+							
 							FD_SET(client_sockfd, &read);
 							if (client_sockfd > fdmax) {
 								fdmax = client_sockfd;
+								protocolMap = (int *)realloc(protocolMap, (fdmax) * sizeof(int));
 							}
-						} while (client_sockfd != -1);
+
+							protocolMap[client_sockfd] = proto;
+
+						//} while (client_sockfd != -1);
 					} else {
 						// 연결된 클라이언트 소켓인 경우
+						printf ("its client\n");
 						printf ("descriptor %d is readable\n", fd);
-						doprocessing(fd, transId, memory);	
+						doprocessing(fd, memory, protocolMap);	
+						close(fd);
 					}
 				}
 			}
 		} 
 	}    	
-	close(client_sockfd);
+
+	int i;
+	for (i=0; i <= fdmax; ++i) {
+      if (FD_ISSET(i, &read))
+         close(i);
+    }
+
 	return 0;
 }
 
@@ -268,15 +288,16 @@ unsigned short checksum(const char *buf, unsigned size)
   return ~sum;
 }
 
-void doprocessing(int client_sockfd, int transId, char memory[]) {
-  // protocol negotiation
-  int proto = negotiating(client_sockfd, transId);
+void doprocessing(int client_sockfd, char memory[], int* protocolMap) {
   bzero(memory, strlen(memory));
 
   int last_str = 0;
   int buf_index = 0;
   char* allbuf;
 	
+  int proto = protocolMap[client_sockfd];
+	printf("protocol:%d\n", proto); 
+
   // 연결 이후 입력 받는 중
   while(1) {
     

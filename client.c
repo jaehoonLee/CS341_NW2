@@ -256,5 +256,6 @@ void writeChunk(int sockfd, char buffer[], int size){
     //    printBufWithSize(buffer + i*CHUNKSIZE, CHUNKSIZE);
     write(sockfd, buffer + i*CHUNKSIZE, CHUNKSIZE);
   }
+	printf("write complete\n");
 }
 
