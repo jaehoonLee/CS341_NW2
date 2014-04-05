@@ -27,7 +27,7 @@ int main(int argc, char *argv[])
 {
 	int server_sockfd, client_sockfd;
 	int state, client_len;
-  	int pid;
+  int pid;
 	int transId = 0;
 
 	char memory[MEMORYSIZE];
@@ -48,8 +48,6 @@ int main(int argc, char *argv[])
 		perror("socket error: ");
 		exit(0);
 	}
-
-	printf("serverfd:%d\n", server_sockfd);
 
 	bzero(&serveraddr, sizeof(serveraddr));
 	serveraddr.sin_family = AF_INET;
@@ -72,34 +70,67 @@ int main(int argc, char *argv[])
 	}
 	printf("listened...\n");
 
-	// 연결
-	while(1) {	  
-	  printf("running.....\n");
-	  client_sockfd = accept(server_sockfd, (struct sockaddr *)&clientaddr, &client_len);
-	 
-		printf("clientfd:%d\n", client_sockfd);
+	/* non-block */
+	fd_set read;
+	fd_set temp;
+	int fdmax;
+	struct timeval timeout;
+	FD_ZERO(&read);
+	FD_ZERO(&temp);
+	FD_SET(server_sockfd, &read);
+	fdmax = server_sockfd;
 
-	  if(client_sockfd == -1){
-	    perror("Accept error : ");
-	    exit(0);      
-	  }
-	  
-	  printf("accepted\n");
-	  
-	  pid = fork();
-	  
-	  if (pid < 0) {
-	    perror("ERROR on fork");
-	    exit(1);
-	  }
-	  
-	  // child proccess
-	  if (pid == 0) {	    
-	    printf("forked\n");
-	    transId = transId + 1;
-	    doprocessing(client_sockfd, transId, memory);            
-	    exit(0);
-	  } 
+	// 연결
+	while(1) {	 
+
+		printf("running.....\n");
+
+		//nonblock
+		temp = master;
+		// memcpy(&temp, &read, sizeof(read));
+
+		timeout.tv_sec = 1;
+		timeout.tv_usec = 0;
+
+		int activeNum = select(fdmax+1, &read, (fd_set *) 0, (fd_set *) 0, &timeout);
+
+		if (activeNum < 0) {
+			//error
+			perror("select");
+			exit(EXIT_FAILURE);
+		} else if (activeNum == 0) {
+			//timeout
+			printf("timeout\n");
+		} else {
+			// 변화가 있는 fd 존재
+			int fd;
+			for (fd=0; i<=fdmax && activNum>0; i++) {
+				// 해당 fd에 변화가 있는 경우
+				if (FD_ISSET(fd, &temp)) {
+					activeNum -= 1;
+					if(i==server_sockfd) {
+						// 서버 소켓인 경우	
+						do {
+							client_sockfd = accept(server_sockfd, (struct sockaddr *)&clientaddr, &client_len);
+							if(client_sockfd < 0){
+								perror("Accept error : ");
+								break;      
+							}
+							printf("accepted\n");
+					
+							FD_SET(client_sockfd, &read);
+							if (client_sockfd > fdmax) {
+								fdmax = client_sockfd;
+							}
+						} while (client_sockfd != -1);
+					} else {
+						// 연결된 클라이언트 소켓인 경우
+						printf ("descriptor %d is readable\n", fd);
+						doprocessing(fd, transId, memory);	
+					}
+				}
+			}
+		} 
 	}    	
 	close(client_sockfd);
 	return 0;

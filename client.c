@@ -157,7 +157,7 @@ int main(int argc, char *argv[])
     /* read response from server */
     readSocket(sockfd, buffer, CHUNKSIZE);
     int lastline = 0;
-    //while(1)
+    while(1)
     {
       printBuf(buffer);
       if(buffer[i] == '\\'){
