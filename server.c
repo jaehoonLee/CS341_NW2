@@ -307,7 +307,7 @@ void doprocessing(int client_sockfd, int transId, char memory[]) {
       //calculate redundancy
       //printBufWithSize(allbuf, leng);
       char * redunt_buf = (char*)malloc(leng+4); 
-      char * redunt_str = removeRedundancy(allbuf, leng);
+      char * redunt_str = removeRedundancy2(allbuf, leng);
       printBufWithSize(redunt_str, leng);
 
 
@@ -399,23 +399,7 @@ char* removeRedundancy2(char *memory, int length) {
   int i = 0; int j = 0;
   
   for (i = 1; i < length; i++) {
-
-    //'\0'
-    if(memory[i-1] == '\\' && memory[i] == '0'){
-      resultbuf[j++] = memory[i-1];
-      continue;
-    }
-
     if(memory[i-1] != memory[i]){
-      //'\\'
-      if(memory[i-1] == '\\'){	
-	if(i==1) return NULL; //wrong message
-	if(memory[i-2] != '\\') return NULL; //wrong message
-	
-	resultbuf[j++] = '\\';
-	resultbuf[j++] = '\\';
-	continue;
-      }
       
       resultbuf[j] = memory[i-1];
       j++;      

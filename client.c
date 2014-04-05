@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
     allbuf[0] = (allbuf_size >> 24) & 0xff;
   }
   
-  printBufWithSize(allbuf, allbuf_size + 4);
+  //  printBufWithSize(allbuf, allbuf_size + 4);
 
   /* write string to server */
   if(proto_num == 1)
@@ -180,13 +180,8 @@ int main(int argc, char *argv[])
       ((buffer[2] & 0xFF) << 8) |
       (buffer[3] & 0xFF);
 
-    printf("leng:%d!!\n", leng);
     leng = leng - (CHUNKSIZE - 4);
-
-
-    printf("leng:%d!!\n", leng);
     while(leng > 0) {
-      printf("%d", leng);
       bzero(buffer, sizeof(buffer));
       readSocket(sockfd, buffer, CHUNKSIZE);
       printf("%s", buffer);
@@ -277,11 +272,11 @@ void readSocket(int sockfd, char negobuf[], int size)
 void writeChunk(int sockfd, char buffer[], int size){ 
   int i;
   for (i = 0; i < (size/CHUNKSIZE)+1; i++){ 
-    printf("(%d) %d %d \n", i, size, CHUNKSIZE);
+    //    printf("(%d) %d %d \n", i, size, CHUNKSIZE);
     //    printBufWithSize(buffer + i*CHUNKSIZE, CHUNKSIZE);
     write(sockfd, buffer + i*CHUNKSIZE, CHUNKSIZE);
   }
-	printf("write complete\n");
+  //	printf("write complete\n");
 }
 
 NEWSTR checkSpecialChar(char* str, int size)
