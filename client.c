@@ -112,14 +112,18 @@ int main(int argc, char *argv[])
     //printBufWithSize(allbuf, allbuf_size + 2);
   }
   else if(proto_num == 2) {
-    allbuf = (char *) realloc(allbuf, allbuf_size + 4);
-    memcpy(allbuf+4, allbuf, allbuf_size);
+    char * temp_allbuf = (char *) malloc(allbuf_size + 4);    
+    memcpy(temp_allbuf+4, allbuf, allbuf_size);
+    free(allbuf);
+    allbuf = temp_allbuf;
     allbuf[3] = allbuf_size & 0xff;
     allbuf[2] = (allbuf_size >> 8) & 0xff;
     allbuf[1] = (allbuf_size >> 16) & 0xff;
     allbuf[0] = (allbuf_size >> 24) & 0xff;
   }
   
+  printBufWithSize(allbuf, allbuf_size + 4);
+
   /* write string to server */
   if(proto_num == 1)
     writeChunk(sockfd, allbuf, allbuf_size + 2);
@@ -175,6 +179,7 @@ int main(int argc, char *argv[])
       ((buffer[1] & 0xFF) << 16) |
       ((buffer[2] & 0xFF) << 8) |
       (buffer[3] & 0xFF);
+    printf("\n%d", leng);
 
     leng = leng - (CHUNKSIZE - 4);
 
