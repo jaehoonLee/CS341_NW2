@@ -10,6 +10,10 @@
 #include <netdb.h>
 
 #define CHUNKSIZE 1024
+typedef struct strarr{
+  char * str;
+  int size;
+}NEWSTR;
 
 void printbufdump(unsigned char *buf);
 void printBuf(char buf[]);
@@ -18,6 +22,7 @@ void printBufWithSize(char buf[], int size);
 void readSocket(int sockfd, char negobuf[], int size);
 unsigned short checksum(const char *buf, unsigned size);
 void writeChunk(int sockfd, char buffer[], int size);
+NEWSTR checkSpecialChar(char str[], int size);
 
 int main(int argc, char *argv[])
 {
@@ -89,17 +94,22 @@ int main(int argc, char *argv[])
   while(fgets(buf, 256, stdin) != NULL){
     char * savedPrePos = allbuf + allbuf_size;
     allbuf_size += strlen(buf);
-    allbuf = (char*)realloc(allbuf, allbuf_size);
+    allbuf = (char*)realloc(allbuf, allbuf_size);    
     memcpy(savedPrePos, buf, strlen(buf));
+    
     bzero(buf, CHUNKSIZE);
   }
+
+  NEWSTR newstr = checkSpecialChar(allbuf, allbuf_size);
+  allbuf = newstr.str;
+  allbuf_size = newstr.size;
 
   /* make protocol */
   if(proto_num == 1) {
     allbuf = (char*)realloc(allbuf, allbuf_size + 2);
     allbuf[allbuf_size] = '\\';
     allbuf[allbuf_size + 1] = '0';
-    printBufWithSize(allbuf, allbuf_size + 2);
+    //printBufWithSize(allbuf, allbuf_size + 2);
   }
   else if(proto_num == 2) {
     allbuf = (char *) realloc(allbuf, allbuf_size + 4);
@@ -109,7 +119,7 @@ int main(int argc, char *argv[])
     allbuf[1] = (allbuf_size >> 16) & 0xff;
     allbuf[0] = (allbuf_size >> 24) & 0xff;
   }
-
+  
   /* write string to server */
   if(proto_num == 1)
     writeChunk(sockfd, allbuf, allbuf_size + 2);
@@ -124,17 +134,23 @@ int main(int argc, char *argv[])
   char * returnbuf = (char*)malloc(1);
   int returnbuf_size = 0;
   if(proto_num == 1){
-    
     /* read response from server */
-    readSocket(sockfd, buffer, CHUNKSIZE);
-    int lastline = 0;
-    while(1)
-    {
-      printBuf(buffer);
-      if(buffer[i] == '\\'){
-	buffer[i] = 0x00;
-	buffer[i+1] = 0x00;
-	lastline = 1;
+    while(1){
+      readSocket(sockfd, buffer, CHUNKSIZE);
+      int prebuf_size = returnbuf_size;
+      returnbuf_size += strlen(buffer);
+      //printf("bufsize:%d\n", returnbuf_size);
+      if(returnbuf_size == 0)
+	continue;
+      
+      returnbuf = (char*)realloc(returnbuf, returnbuf_size);
+      memcpy(returnbuf + prebuf_size, buffer, strlen(buffer));
+
+      //printf("1:%s %d\n",returnbuf, returnbuf_size);
+      if(returnbuf[returnbuf_size-1] == '0' && returnbuf[returnbuf_size - 2] == '\\'){
+	returnbuf[returnbuf_size-1] = 0x00;
+	returnbuf[returnbuf_size-2] = 0x00;
+	returnbuf = (char *)realloc(returnbuf, returnbuf_size - 2);
 	break;
       }
     }
@@ -142,6 +158,7 @@ int main(int argc, char *argv[])
     printf("%s", returnbuf);
     
     printf("\n");
+
   } else if(proto_num == 2){
 
     /* read response from server */
@@ -247,15 +264,44 @@ void readSocket(int sockfd, char negobuf[], int size)
   }
 }
 
-
-void writeChunk(int sockfd, char buffer[], int size){
-  
+void writeChunk(int sockfd, char buffer[], int size){ 
   int i;
   for (i = 0; i < (size/CHUNKSIZE)+1; i++){ 
-    //    printf("(%d) %d %d \n", i, size, CHUNKSIZE);
+    printf("(%d) %d %d \n", i, size, CHUNKSIZE);
     //    printBufWithSize(buffer + i*CHUNKSIZE, CHUNKSIZE);
     write(sockfd, buffer + i*CHUNKSIZE, CHUNKSIZE);
   }
 	printf("write complete\n");
 }
 
+NEWSTR checkSpecialChar(char* str, int size)
+{
+  //  printBufWithSize(str, size);
+  //count '\'
+  int i = 0; int numSC = 0;
+  for(i = 0; i < size; i++){
+    if(str[i] == '\\'){
+      numSC++;
+    }
+  }
+
+  //make '\' -> '\\'
+  // printf("size:%d", numSC);
+  char * newstr = (char*)malloc(size + numSC);
+  numSC = 0;
+  for(i = 0; i < size; i++){
+    if(str[i] == '\\'){
+      newstr[i+numSC] = str[i];  
+      numSC++;
+    }
+    newstr[i+numSC] = str[i];
+  }
+  //  printBufWithSize(newstr, size + numSC);
+  free(str);
+
+  NEWSTR newStr;
+  newStr.str = newstr;
+  newStr.size = size + numSC;
+  
+  return newStr;
+}
